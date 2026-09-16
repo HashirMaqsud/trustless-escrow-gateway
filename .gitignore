@@ -1,0 +1,21 @@
+# Dependencies & Build artifacts
+node_modules/
+.next/
+out/
+build/
+cache/
+artifacts/
+
+# Foundry
+contracts/lib/
+contracts/out/
+contracts/cache/
+
+# Environment Variables
+.env
+.env*.local
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
