@@ -22,9 +22,6 @@ contract EscrowFactory {
         uint256 amount
     );
 
-    // --- Custom Errors ---
-    error DeploymentFailed();
-
     /**
      * @notice Deploys a new Escrow contract instance and registers it.
      * @param _freelancer Address of the service provider.
@@ -48,7 +45,6 @@ contract EscrowFactory {
         );
 
         escrowAddress = address(newEscrow);
-        if (escrowAddress == address(0)) revert DeploymentFailed();
 
         allEscrows.push(escrowAddress);
         userEscrows[msg.sender].push(escrowAddress);
