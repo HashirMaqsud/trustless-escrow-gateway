@@ -9,7 +9,6 @@ artifacts/
 # Foundry artifacts & deployment cache
 cache/
 out/
-contracts/lib/
 broadcast/
 contracts/cache/
 contracts/out/
