@@ -6,13 +6,22 @@ build/
 cache/
 artifacts/
 
-# Foundry
+# Foundry artifacts & deployment cache
+cache/
+out/
 contracts/lib/
-contracts/out/
+broadcast/
 contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+# Coverage reports
+contracts/lcov.info
 
 # Environment Variables
 .env
+.env.*
+*.env
 .env*.local
 
 # OS & Editor
