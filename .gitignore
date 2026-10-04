@@ -26,4 +26,6 @@ contracts/lcov.info
 # OS & Editor
 .DS_Store
 .vscode/
-.idea/
+.idea/.env.local
+contracts/.env
+frontend/.env.local
