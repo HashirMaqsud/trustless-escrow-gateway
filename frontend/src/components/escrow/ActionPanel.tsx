@@ -40,10 +40,17 @@ export function ActionPanel({
   const [inputUrl, setInputUrl] = useState('');
   const [refundEth, setRefundEth] = useState('');
   const [payoutEth, setPayoutEth] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const isClient = address?.toLowerCase() === client?.toLowerCase();
   const isFreelancer = address?.toLowerCase() === freelancer?.toLowerCase();
   const isArbiter = address?.toLowerCase() === arbiter?.toLowerCase();
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (!address) {
     return (
@@ -65,9 +72,23 @@ export function ActionPanel({
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-      <h3 className="text-lg font-bold text-white mb-4">
-        Available Actions ({isClient ? 'Client' : isFreelancer ? 'Freelancer' : 'Arbiter'})
-      </h3>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-800">
+        <div>
+          <h3 className="text-lg font-bold text-white">
+            Available Actions
+          </h3>
+          <span className="text-xs text-indigo-400 font-medium">
+            Active Role: {isClient ? 'Client (Vault Owner)' : isFreelancer ? 'Freelancer (Service Provider)' : 'Arbiter (Mediator)'}
+          </span>
+        </div>
+
+        <button
+          onClick={handleCopyLink}
+          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition self-start sm:self-auto"
+        >
+          {copied ? '✓ Link Copied' : '📋 Share Agreement Link'}
+        </button>
+      </div>
 
       {/* Deliverable Review (Client/Freelancer/Arbiter can see) */}
       {deliverableUrl && (
@@ -104,6 +125,17 @@ export function ActionPanel({
             </button>
           )}
 
+          {currentState === EscrowState.Funded && (
+            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center">
+              <p className="text-sm text-zinc-300 font-medium">
+                Vault is funded. Awaiting deliverable submission from freelancer.
+              </p>
+              <p className="text-xs text-zinc-500 mt-1">
+                Share this page URL with your freelancer so they can submit their work.
+              </p>
+            </div>
+          )}
+
           {currentState === EscrowState.Delivered && (
             <button
               onClick={async () => {
@@ -135,6 +167,12 @@ export function ActionPanel({
       {/* 2. FREELANCER ACTIONS */}
       {isFreelancer && (
         <div className="space-y-4">
+          {currentState === EscrowState.Pending && (
+            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center text-zinc-400 text-sm">
+              Awaiting client deposit. Do not begin work until funds are locked in the vault.
+            </div>
+          )}
+
           {currentState === EscrowState.Funded && (
             <div className="space-y-2">
               <label className="text-xs text-zinc-400 uppercase font-medium">Proof of Work (URL)</label>
@@ -157,6 +195,12 @@ export function ActionPanel({
               >
                 {isLoading ? 'Submitting...' : 'Submit Deliverable'}
               </button>
+            </div>
+          )}
+
+          {currentState === EscrowState.Delivered && (
+            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center text-zinc-300 text-sm">
+              Deliverable submitted. Awaiting client milestone approval and payout release.
             </div>
           )}
 
