@@ -1,7 +1,7 @@
 'use client';
 
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem';
+import { parseEther, zeroAddress } from 'viem';
 import { ESCROW_FACTORY_ADDRESS, ESCROW_FACTORY_ABI } from '@/constants/contracts';
 
 export interface CreateEscrowParams {
@@ -23,8 +23,12 @@ export function useCreateEscrow() {
       address: ESCROW_FACTORY_ADDRESS,
       abi: ESCROW_FACTORY_ABI,
       functionName: 'createEscrow',
-      args: [freelancer, arbiter],
-      value: parseEther(depositAmount),
+      args: [
+        freelancer,
+        arbiter,
+        zeroAddress,
+        parseEther(depositAmount),
+      ],
     });
   };
 

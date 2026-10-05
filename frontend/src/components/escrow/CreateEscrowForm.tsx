@@ -1,12 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useSyncExternalStore } from 'react';
 import { isAddress, getAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { useCreateEscrow } from '@/hooks/useCreateEscrow';
 import { AlertCircle, CheckCircle2, Loader2, ArrowUpRight } from 'lucide-react';
 
+const subscribe = () => () => {};
+
 export const CreateEscrowForm = () => {
+  const mounted = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
+  );
+
   const { isConnected, address: clientAddress } = useAccount();
   const { createEscrow, isLoading, isSuccess, txHash, error } = useCreateEscrow();
 
@@ -61,6 +69,7 @@ export const CreateEscrowForm = () => {
         depositAmount,
       });
     } catch {
+      // Error handled by useCreateEscrow hook
     }
   };
 
@@ -155,10 +164,12 @@ export const CreateEscrowForm = () => {
 
         <button
           type="submit"
-          disabled={isLoading || !isConnected}
+          disabled={!mounted || isLoading || !isConnected}
           className="w-full mt-2 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm cursor-pointer disabled:cursor-not-allowed"
         >
-          {isLoading ? (
+          {!mounted ? (
+            'Loading...'
+          ) : isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Confirming on Chain...</span>

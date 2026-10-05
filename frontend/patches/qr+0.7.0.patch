@@ -1,0 +1,13 @@
+diff --git a/node_modules/qr/index.js b/node_modules/qr/index.js
+index baeff08..5ba167b 100644
+--- a/node_modules/qr/index.js
++++ b/node_modules/qr/index.js
+@@ -953,7 +953,7 @@ export function encodeQR(text, output = 'raw', opts = {}) {
+     // need the borderless module matrix (custom-design renderers like qrbtf /
+     // cuer) should request border: 1 and slice the padding ring off — the
+     // border is added after the symbol is drawn and never affects its content.
+-    if (border <= 0)
++    if (border < 0)
+         throw new RangeError(`invalid border=${border}`);
+     const scale = opts.scale === undefined ? 1 : asNum(opts.scale, 'opts.scale');
+     if (scale <= 0 || scale > 1024)
