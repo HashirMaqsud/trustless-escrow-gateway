@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useSyncExternalStore } from 'react';
+import Link from 'next/link';
 import { isAddress, getAddress } from 'viem';
 import { useAccount } from 'wagmi';
 import { useCreateEscrow } from '@/hooks/useCreateEscrow';
-import { AlertCircle, CheckCircle2, Loader2, ArrowUpRight } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, ArrowUpRight, Copy, Check } from 'lucide-react';
 
 const subscribe = () => () => {};
 
@@ -16,12 +17,24 @@ export const CreateEscrowForm = () => {
   );
 
   const { isConnected, address: clientAddress } = useAccount();
-  const { createEscrow, isLoading, isSuccess, txHash, error } = useCreateEscrow();
+  const { createEscrow, isLoading, isSuccess, txHash, deployedAddress, error } = useCreateEscrow();
 
   const [freelancer, setFreelancer] = useState('');
   const [arbiter, setArbiter] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const shareableUrl = deployedAddress
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/escrow/${deployedAddress}`
+    : '';
+
+  const handleCopy = () => {
+    if (!shareableUrl) return;
+    navigator.clipboard.writeText(shareableUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,7 +82,7 @@ export const CreateEscrowForm = () => {
         depositAmount,
       });
     } catch {
-      // Error handled by useCreateEscrow hook
+      // Handled in hook
     }
   };
 
@@ -97,20 +110,48 @@ export const CreateEscrowForm = () => {
       )}
 
       {isSuccess && (
-        <div className="mb-5 p-4 bg-emerald-950/40 border border-emerald-800/60 rounded-lg text-emerald-300 text-sm">
-          <div className="flex items-center gap-2 font-medium">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-            <span>Escrow deployed successfully on Sepolia!</span>
+        <div className="mb-6 p-4 bg-emerald-950/40 border border-emerald-800/80 rounded-xl text-emerald-300 text-sm space-y-3">
+          <div className="flex items-center gap-2 font-semibold text-emerald-400">
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span>Escrow Initialized Successfully!</span>
           </div>
-          {txHash && (
-            <a
-              href={`https://sepolia.etherscan.io/tx/${txHash}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-400 underline hover:text-emerald-300"
-            >
-              View on Sepolia Etherscan <ArrowUpRight className="w-3 h-3" />
-            </a>
+
+          {deployedAddress && (
+            <div className="bg-zinc-950/80 p-3 rounded-lg border border-zinc-800 text-xs font-mono text-zinc-300 space-y-2">
+              <span className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold block">
+                Shareable Agreement URL
+              </span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-zinc-400">{shareableUrl}</span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded border border-zinc-700 flex items-center gap-1 shrink-0 font-sans text-xs transition"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="pt-2 flex items-center justify-between border-t border-zinc-800/80">
+                <Link
+                  href={`/escrow/${deployedAddress}`}
+                  className="inline-flex items-center gap-1 font-semibold text-indigo-400 hover:text-indigo-300 font-sans"
+                >
+                  Open Escrow Agreement →
+                </Link>
+                {txHash && (
+                  <a
+                    href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-300 underline font-sans"
+                  >
+                    Etherscan <ArrowUpRight className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -177,7 +218,7 @@ export const CreateEscrowForm = () => {
           ) : !isConnected ? (
             'Connect Wallet to Deploy'
           ) : (
-            'Deploy & Lock Funds'
+            'Deploy & Initialize Escrow'
           )}
         </button>
       </form>
