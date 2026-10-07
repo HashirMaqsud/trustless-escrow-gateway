@@ -10,7 +10,8 @@ export interface EscrowHistoryItem {
 }
 
 interface EtherscanTxResponse {
-  hash: string;
+  hash?: string;
+  transactionHash?: string;
   timeStamp: string;
   from: string;
   value: string;
@@ -29,30 +30,43 @@ export function useEtherscanHistory(escrowAddress: `0x${string}` | undefined) {
       setIsLoading(true);
       setError(null);
       try {
-        const apiKey = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY || '';
-        const url = `https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=${escrowAddress}&startblock=0&endblock=99999999&page=1&offset=10&sort=asc${
-          apiKey ? `&apikey=${apiKey}` : ''
-        }`;
+        const res = await fetch(`/api/etherscan-history?address=${escrowAddress}`);
+        
+        if (!res.ok) {
+          throw new Error(`API responded with status: ${res.status}`);
+        }
 
-        const res = await fetch(url);
-        const data = (await res.json()) as { status: string; result: EtherscanTxResponse[] };
+        const data: { directTxs: EtherscanTxResponse[]; internalTxs: EtherscanTxResponse[] } = await res.json();
 
         if (isMounted) {
-          if (data.status === '1' && Array.isArray(data.result)) {
-            const mapped: EscrowHistoryItem[] = data.result.map((tx) => ({
-              hash: tx.hash,
-              timestamp: Number(tx.timeStamp),
-              from: tx.from,
-              value: tx.value,
-            }));
-            setHistory(mapped);
-          } else {
-            setHistory([]);
+          const directTxs = Array.isArray(data.directTxs) ? data.directTxs : [];
+          const internalTxs = Array.isArray(data.internalTxs) ? data.internalTxs : [];
+          const combined = [...directTxs, ...internalTxs];
+
+          const seen = new Set<string>();
+          const mapped: EscrowHistoryItem[] = [];
+
+          for (const tx of combined) {
+            const txHash = tx.hash || tx.transactionHash;
+            if (txHash && !seen.has(txHash.toLowerCase())) {
+              seen.add(txHash.toLowerCase());
+              mapped.push({
+                hash: txHash,
+                timestamp: Number(tx.timeStamp),
+                from: tx.from,
+                value: tx.value,
+              });
+            }
           }
+
+          mapped.sort((a, b) => b.timestamp - a.timestamp);
+          setHistory(mapped);
         }
       } catch (err: unknown) {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to fetch Etherscan history');
+          setError(
+            err instanceof Error ? err.message : 'Failed to fetch Etherscan history'
+          );
         }
       } finally {
         if (isMounted) setIsLoading(false);
