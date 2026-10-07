@@ -1,13 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAccount, useReadContract } from 'wagmi';
 import { ESCROW_FACTORY_ADDRESS, ESCROW_FACTORY_ABI } from '@/constants/contracts';
 import { EscrowCard } from '@/components/escrow/EscrowCard';
-import { Plus, FolderKanban } from 'lucide-react';
+import { getHiddenEscrows } from '@/utils/escrowMetadata';
+import { Plus, FolderKanban, Layers, Archive } from 'lucide-react';
+
+type TabType = 'active' | 'archived';
 
 export default function DashboardPage() {
   const { address, isConnected } = useAccount();
+  const [activeTab, setActiveTab] = useState<TabType>('active');
+  const [hiddenList, setHiddenList] = useState<string[]>(() => getHiddenEscrows());
 
   const { data: userEscrows, isLoading } = useReadContract({
     address: ESCROW_FACTORY_ADDRESS,
@@ -21,9 +27,24 @@ export default function DashboardPage() {
 
   const escrows = (userEscrows as `0x${string}`[] | undefined) || [];
 
+  const refreshHiddenList = () => {
+    setHiddenList(getHiddenEscrows());
+  };
+
+  const activeEscrows = escrows.filter(
+    (addr) => !hiddenList.includes(addr.toLowerCase())
+  );
+
+  const archivedEscrows = escrows.filter(
+    (addr) => hiddenList.includes(addr.toLowerCase())
+  );
+
+  const currentDisplayList = activeTab === 'active' ? activeEscrows : archivedEscrows;
+
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             <FolderKanban className="w-6 h-6 text-indigo-400" />
@@ -43,6 +64,42 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {/* Tabs Filter Bar */}
+      {isConnected && escrows.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-zinc-800 mb-6 pb-2">
+          <button
+            onClick={() => setActiveTab('active')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              activeTab === 'active'
+                ? 'bg-zinc-800 text-white border border-zinc-700'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Active Agreements
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-zinc-900 text-[10px] text-zinc-300 font-mono">
+              {activeEscrows.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('archived')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition ${
+              activeTab === 'archived'
+                ? 'bg-zinc-800 text-white border border-zinc-700'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900'
+            }`}
+          >
+            <Archive className="w-3.5 h-3.5" />
+            Archived / Hidden
+            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-zinc-900 text-[10px] text-zinc-300 font-mono">
+              {archivedEscrows.length}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Main Content Area */}
       {!isConnected ? (
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-10 text-center">
           <p className="text-zinc-400 text-sm mb-3">Please connect your wallet to view your escrow agreements.</p>
@@ -67,10 +124,22 @@ export default function DashboardPage() {
             Deploy Your First Escrow
           </Link>
         </div>
+      ) : currentDisplayList.length === 0 ? (
+        <div className="bg-zinc-900/50 border border-zinc-800/80 rounded-xl p-10 text-center">
+          <p className="text-zinc-400 text-sm">
+            {activeTab === 'active'
+              ? 'All agreements are currently archived.'
+              : 'No agreements have been archived or hidden.'}
+          </p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {escrows.map((escrowAddr) => (
-            <EscrowCard key={escrowAddr} escrowAddress={escrowAddr} />
+          {currentDisplayList.map((escrowAddr) => (
+            <EscrowCard
+              key={escrowAddr}
+              escrowAddress={escrowAddr}
+              onVisibilityChange={refreshHiddenList}
+            />
           ))}
         </div>
       )}

@@ -1,27 +1,43 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
-import { parseEther } from 'viem';
+import { useAccount, useReadContract } from 'wagmi';
+import { parseEther, zeroAddress } from 'viem';
 import { EscrowState } from '@/constants/contracts';
 import { useEscrowActions } from '@/hooks/useEscrowActions';
+import { Check, Copy } from 'lucide-react';
 
 interface ActionPanelProps {
   escrowAddress: `0x${string}`;
   client: `0x${string}` | undefined;
   freelancer: `0x${string}` | undefined;
   arbiter: `0x${string}` | undefined;
+  token?: `0x${string}` | undefined;
   amount: bigint | undefined;
   currentState: EscrowState | undefined;
   deliverableUrl: string | undefined;
   onActionSuccess: () => void;
 }
 
+const ERC20_ALLOWANCE_ABI = [
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
 export function ActionPanel({
   escrowAddress,
   client,
   freelancer,
   arbiter,
+  token,
   amount,
   currentState,
   deliverableUrl,
@@ -29,6 +45,7 @@ export function ActionPanel({
 }: ActionPanelProps) {
   const { address } = useAccount();
   const {
+    approveToken,
     fundEscrow,
     submitDeliverable,
     releaseFunds,
@@ -41,6 +58,19 @@ export function ActionPanel({
   const [refundEth, setRefundEth] = useState('');
   const [payoutEth, setPayoutEth] = useState('');
   const [copied, setCopied] = useState(false);
+
+  const isEth = !token || token === zeroAddress;
+
+  // Read ERC-20 allowance if this escrow uses a custom token
+  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+    address: !isEth ? token : undefined,
+    abi: ERC20_ALLOWANCE_ABI,
+    functionName: 'allowance',
+    args: address && !isEth ? [address, escrowAddress] : undefined,
+    query: {
+      enabled: !isEth && !!address,
+    },
+  });
 
   const isClient = address?.toLowerCase() === client?.toLowerCase();
   const isFreelancer = address?.toLowerCase() === freelancer?.toLowerCase();
@@ -70,6 +100,8 @@ export function ActionPanel({
     );
   }
 
+  const hasSufficientAllowance = isEth || (allowance !== undefined && amount !== undefined && allowance >= amount);
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-800">
@@ -86,6 +118,7 @@ export function ActionPanel({
           onClick={handleCopyLink}
           className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition self-start sm:self-auto"
         >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
           {copied ? '✓ Link Copied' : '📋 Share Agreement Link'}
         </button>
       </div>
@@ -111,18 +144,35 @@ export function ActionPanel({
       {isClient && (
         <div className="space-y-4">
           {currentState === EscrowState.Pending && (
-            <button
-              onClick={async () => {
-                if (amount) {
-                  await fundEscrow(amount);
-                  onActionSuccess();
-                }
-              }}
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
-            >
-              {isLoading ? 'Confirming Deposit...' : 'Deposit Agreed Funds into Vault'}
-            </button>
+            <div className="space-y-3">
+              {!isEth && !hasSufficientAllowance ? (
+                <button
+                  onClick={async () => {
+                    if (token && amount) {
+                      await approveToken(token, amount);
+                      refetchAllowance();
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+                >
+                  {isLoading ? 'Approving Tokens...' : 'Step 1: Approve ERC-20 Tokens'}
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    if (amount) {
+                      await fundEscrow(amount, token);
+                      onActionSuccess();
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+                >
+                  {isLoading ? 'Confirming Deposit...' : `Deposit Agreed Funds into Vault (${isEth ? 'ETH' : 'ERC-20'})`}
+                </button>
+              )}
+            </div>
           )}
 
           {currentState === EscrowState.Funded && (
@@ -227,7 +277,7 @@ export function ActionPanel({
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-zinc-400">Client Refund (ETH)</label>
+              <label className="text-xs text-zinc-400">Client Refund ({isEth ? 'ETH' : 'Tokens'})</label>
               <input
                 type="text"
                 value={refundEth}
@@ -237,7 +287,7 @@ export function ActionPanel({
               />
             </div>
             <div>
-              <label className="text-xs text-zinc-400">Freelancer Payout (ETH)</label>
+              <label className="text-xs text-zinc-400">Freelancer Payout ({isEth ? 'ETH' : 'Tokens'})</label>
               <input
                 type="text"
                 value={payoutEth}

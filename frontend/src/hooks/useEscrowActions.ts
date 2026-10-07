@@ -1,7 +1,22 @@
 'use client';
 
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { zeroAddress } from 'viem';
 import { ESCROW_ABI } from '@/constants/contracts';
+
+// Minimal ERC-20 ABI for allowance approval
+const ERC20_ABI = [
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const;
 
 export function useEscrowActions(escrowAddress: `0x${string}`) {
   const { data: hash, isPending: isWritePending, error: writeError, writeContractAsync } = useWriteContract();
@@ -26,14 +41,28 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
     }
   };
 
-  // 1. Client deposits agreed funds
-  const fundEscrow = async (amountInWei: bigint) => {
+  // 0. Approve ERC-20 tokens for the escrow contract
+  const approveToken = async (tokenAddress: `0x${string}`, amount: bigint) => {
+    return executeCall(() =>
+      writeContractAsync({
+        address: tokenAddress,
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [escrowAddress, amount],
+      })
+    );
+  };
+
+  // 1. Client deposits agreed funds (supports native ETH and ERC-20)
+  const fundEscrow = async (amount: bigint, tokenAddress?: `0x${string}`) => {
+    const isEth = !tokenAddress || tokenAddress === zeroAddress;
+
     return executeCall(() =>
       writeContractAsync({
         address: escrowAddress,
         abi: ESCROW_ABI,
         functionName: 'fund',
-        value: amountInWei,
+        value: isEth ? amount : BigInt(0),
       })
     );
   };
@@ -85,6 +114,7 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
   };
 
   return {
+    approveToken,
     fundEscrow,
     submitDeliverable,
     releaseFunds,

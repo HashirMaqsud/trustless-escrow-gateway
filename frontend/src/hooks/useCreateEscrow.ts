@@ -9,6 +9,7 @@ export interface CreateEscrowParams {
   freelancer: `0x${string}`;
   arbiter: `0x${string}`;
   depositAmount: string;
+  token?: `0x${string}`;
 }
 
 export function useCreateEscrow() {
@@ -34,7 +35,7 @@ export function useCreateEscrow() {
     }
   }, [receipt]);
 
-  const createEscrow = async ({ freelancer, arbiter, depositAmount }: CreateEscrowParams) => {
+  const createEscrow = async ({ freelancer, arbiter, depositAmount, token }: CreateEscrowParams) => {
     return await writeContractAsync({
       address: ESCROW_FACTORY_ADDRESS,
       abi: ESCROW_FACTORY_ABI,
@@ -42,7 +43,7 @@ export function useCreateEscrow() {
       args: [
         freelancer,
         arbiter,
-        zeroAddress,
+        token || zeroAddress,
         parseEther(depositAmount),
       ],
     });
