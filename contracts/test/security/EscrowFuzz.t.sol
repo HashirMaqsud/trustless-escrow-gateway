@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Escrow} from "../../src/Escrow.sol";
@@ -10,36 +10,47 @@ contract EscrowFuzzTest is Test {
     address public client = makeAddr("client");
     address public freelancer = makeAddr("freelancer");
     address public arbiter = makeAddr("arbiter");
+    address public feeRecipient = makeAddr("feeRecipient");
+
+    uint256 public constant PROTOCOL_FEE_BPS = 100; // 1%
 
     function setUp() public {}
 
     // Fuzz 1: Test valid deployment and funding across arbitrary non-zero amounts
     function testFuzz_Fund_ArbitraryEthAmount(uint96 amount) public {
-        vm.assume(amount > 0);
+        vm.assume(amount > 10000); // Prevent zero-fee rounding
+
+        uint256 fee = (uint256(amount) * PROTOCOL_FEE_BPS) / 10000;
+        uint256 totalRequired = uint256(amount) + fee;
 
         escrow = new Escrow(
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(0),
-            amount
+            amount,
+            PROTOCOL_FEE_BPS
         );
 
-        vm.deal(client, uint256(amount));
+        vm.deal(client, totalRequired);
 
         vm.prank(client);
-        escrow.fund{value: amount}();
+        escrow.fund{value: totalRequired}();
 
         // Mathematical invariants
         assertEq(address(escrow).balance, amount);
+        assertEq(feeRecipient.balance, fee);
         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));
     }
 
     // Fuzz 2: Mathematical Invariant on Dispute Split
-    // For any random refundAmount and payoutAmount that sum up to amount, contract must settle cleanly
     function testFuzz_Dispute_ValidArbitrarySplit(uint96 amount, uint96 clientShare) public {
-        vm.assume(amount > 0);
+        vm.assume(amount > 10000);
         vm.assume(clientShare <= amount);
+
+        uint256 fee = (uint256(amount) * PROTOCOL_FEE_BPS) / 10000;
+        uint256 totalRequired = uint256(amount) + fee;
 
         uint256 refundAmount = uint256(clientShare);
         uint256 payoutAmount = uint256(amount) - refundAmount;
@@ -48,13 +59,15 @@ contract EscrowFuzzTest is Test {
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(0),
-            amount
+            amount,
+            PROTOCOL_FEE_BPS
         );
 
-        vm.deal(client, uint256(amount));
+        vm.deal(client, totalRequired);
         vm.prank(client);
-        escrow.fund{value: amount}();
+        escrow.fund{value: totalRequired}();
 
         vm.prank(client);
         escrow.raiseDispute();
@@ -74,20 +87,25 @@ contract EscrowFuzzTest is Test {
 
     // Fuzz 3: Strict Revert on Invalid Split Sum (even 1 wei mismatch must fail)
     function testFuzz_RevertIf_DisputeSplitMismatch(uint96 amount, uint96 refundAmount, uint96 payoutAmount) public {
-        vm.assume(amount > 0);
+        vm.assume(amount > 10000);
         vm.assume(uint256(refundAmount) + uint256(payoutAmount) != uint256(amount));
+
+        uint256 fee = (uint256(amount) * PROTOCOL_FEE_BPS) / 10000;
+        uint256 totalRequired = uint256(amount) + fee;
 
         escrow = new Escrow(
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(0),
-            amount
+            amount,
+            PROTOCOL_FEE_BPS
         );
 
-        vm.deal(client, uint256(amount));
+        vm.deal(client, totalRequired);
         vm.prank(client);
-        escrow.fund{value: amount}();
+        escrow.fund{value: totalRequired}();
 
         vm.prank(client);
         escrow.raiseDispute();

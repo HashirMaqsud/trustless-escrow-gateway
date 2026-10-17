@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {EscrowFactory} from "../src/EscrowFactory.sol";
 
 contract DeployEscrowFactory is Script {
-    function run() external returns (EscrowFactory factory) {
-        // Read private key or deployer configuration from environment
-        vm.startBroadcast();
+    function run() external returns (address) {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address feeRecipient = vm.envOr("FEE_RECIPIENT", vm.addr(deployerPrivateKey));
+        uint256 feeBps = vm.envOr("FEE_BPS", uint256(100));
 
-        factory = new EscrowFactory();
+        vm.startBroadcast(deployerPrivateKey);
+
+        EscrowFactory factory = new EscrowFactory(feeRecipient, feeBps);
         console.log("EscrowFactory deployed at:", address(factory));
 
         vm.stopBroadcast();
+        return address(factory);
     }
 }

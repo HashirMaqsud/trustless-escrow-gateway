@@ -3,8 +3,8 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { formatEther } from 'viem';
 import { useEscrowState } from '@/hooks/useEscrowState';
+import { useTokenMetadata } from '@/hooks/useTokenSymbol';
 import { useEtherscanHistory } from '@/hooks/useEtherscanHistory';
 import { StateTimeline } from '@/components/escrow/StateTimeline';
 import { ActionPanel } from '@/components/escrow/ActionPanel';
@@ -48,6 +48,9 @@ export default function EscrowDetailPage({ params }: EscrowPageProps) {
     isLoading,
     refetch,
   } = useEscrowState(escrowAddress);
+
+  // Dynamically resolve symbol, decimals, and custom unit formatting for the escrow asset
+  const { symbol, formatAmount } = useTokenMetadata(token);
 
   const { history, isLoading: isHistoryLoading } = useEtherscanHistory(escrowAddress);
 
@@ -191,7 +194,7 @@ export default function EscrowDetailPage({ params }: EscrowPageProps) {
           <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80">
             <span className="text-xs text-zinc-500 font-medium">Locked Balance</span>
             <p className="text-lg font-bold text-white mt-1">
-              {amount ? `${formatEther(amount)} ETH` : '0 ETH'}
+              {formatAmount(amount)} {symbol}
             </p>
           </div>
 

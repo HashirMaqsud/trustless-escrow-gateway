@@ -3,9 +3,10 @@
 import React, { useState, useSyncExternalStore, useEffect } from 'react';
 import Link from 'next/link';
 import { isAddress, getAddress, zeroAddress } from 'viem';
-import { useAccount } from 'wagmi';
+import { useAccount, useChainId, usePublicClient } from 'wagmi';
 import { useCreateEscrow } from '@/hooks/useCreateEscrow';
 import { setEscrowMetadata } from '@/utils/escrowMetadata';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
 import { AlertCircle, CheckCircle2, Loader2, ArrowUpRight, Copy, Check, Coins } from 'lucide-react';
 
 const subscribe = () => () => {};
@@ -18,17 +19,24 @@ export const CreateEscrowForm = () => {
   );
 
   const { isConnected, address: clientAddress } = useAccount();
+  const chainId = useChainId();
+  const publicClient = usePublicClient();
   const { createEscrow, isLoading, isSuccess, txHash, deployedAddress, error } = useCreateEscrow();
 
   const [assetType, setAssetType] = useState<'ETH' | 'ERC20'>('ETH');
-  const [tokenAddress, setTokenAddress] = useState('');
+  const [selectedTokenSymbol, setSelectedTokenSymbol] = useState<string>('USDC');
+  const [customTokenAddress, setCustomTokenAddress] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
   const [description, setDescription] = useState('');
   const [freelancer, setFreelancer] = useState('');
   const [arbiter, setArbiter] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isValidatingToken, setIsValidatingToken] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // Retrieve tokens configured for the current connected chain
+  const availableTokens = SUPPORTED_TOKENS[chainId] || SUPPORTED_TOKENS[11155111] || [];
 
   useEffect(() => {
     if (isSuccess && deployedAddress && (projectTitle || description)) {
@@ -67,18 +75,15 @@ export const CreateEscrowForm = () => {
       return;
     }
 
-    if (!isAddress(freelancer)) {
-      setValidationError('Invalid Freelancer Ethereum address.');
+    // Validate freelancer address and reject zero address
+    if (!isAddress(freelancer) || freelancer.toLowerCase() === zeroAddress.toLowerCase()) {
+      setValidationError('Invalid Freelancer address. Zero address cannot be assigned.');
       return;
     }
 
-    if (!isAddress(arbiter)) {
-      setValidationError('Invalid Arbiter Ethereum address.');
-      return;
-    }
-
-    if (assetType === 'ERC20' && !isAddress(tokenAddress)) {
-      setValidationError('Invalid ERC-20 token contract address.');
+    // Validate arbiter address and reject zero address
+    if (!isAddress(arbiter) || arbiter.toLowerCase() === zeroAddress.toLowerCase()) {
+      setValidationError('Invalid Arbiter address. Zero address cannot be assigned.');
       return;
     }
 
@@ -86,11 +91,13 @@ export const CreateEscrowForm = () => {
     const cleanArbiter = getAddress(arbiter);
     const cleanClient = clientAddress ? getAddress(clientAddress) : '';
 
+    // Prevent client from assigning self as freelancer
     if (cleanFreelancer === cleanClient) {
       setValidationError('Freelancer address cannot be the same as Client address.');
       return;
     }
 
+    // Ensure arbiter is distinct from client and freelancer
     if (cleanArbiter === cleanClient || cleanArbiter === cleanFreelancer) {
       setValidationError('Arbiter must be an independent third party.');
       return;
@@ -102,15 +109,61 @@ export const CreateEscrowForm = () => {
       return;
     }
 
+    let finalTokenAddress: `0x${string}` = zeroAddress;
+
+    if (assetType === 'ERC20') {
+      let resolvedAddress = '';
+
+      if (selectedTokenSymbol === 'CUSTOM') {
+        resolvedAddress = customTokenAddress.trim();
+      } else {
+        const found = availableTokens.find((t) => t.symbol === selectedTokenSymbol);
+        resolvedAddress = found ? found.address : '';
+      }
+
+      if (!isAddress(resolvedAddress)) {
+        setValidationError('Invalid ERC-20 token contract address.');
+        return;
+      }
+
+      const cleanToken = getAddress(resolvedAddress);
+
+      // Prevent selecting zero address as an ERC-20 token
+      if (cleanToken.toLowerCase() === zeroAddress.toLowerCase()) {
+        setValidationError('Zero address cannot be an ERC-20 token. Use the Native ETH tab instead.');
+        return;
+      }
+
+      // Verify whether the address contains deployed bytecode or is an EOA wallet
+      if (publicClient) {
+        setIsValidatingToken(true);
+        try {
+          const bytecode = await publicClient.getBytecode({ address: cleanToken });
+          if (!bytecode || bytecode === '0x') {
+            setValidationError('The selected token address is an EOA (wallet), not a deployed contract.');
+            setIsValidatingToken(false);
+            return;
+          }
+        } catch {
+          setValidationError('Could not verify token contract bytecode on Sepolia.');
+          setIsValidatingToken(false);
+          return;
+        }
+        setIsValidatingToken(false);
+      }
+
+      finalTokenAddress = cleanToken;
+    }
+
     try {
       await createEscrow({
         freelancer: cleanFreelancer,
         arbiter: cleanArbiter,
         depositAmount,
-        token: assetType === 'ERC20' ? getAddress(tokenAddress) : zeroAddress,
+        token: finalTokenAddress,
       });
     } catch {
-      // Handled in hook
+      // Error is caught and surfaced by the useCreateEscrow hook
     }
   };
 
@@ -195,12 +248,12 @@ export const CreateEscrowForm = () => {
             placeholder="e.g. Next.js DApp Frontend & Smart Contracts"
             value={projectTitle}
             onChange={(e) => setProjectTitle(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || isValidatingToken}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
           />
         </div>
 
-        {/* Project Description Field */}
+        {/* Milestone Description Field */}
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
             Milestone Scope / Description <span className="text-zinc-500 font-normal lowercase">(optional)</span>
@@ -210,12 +263,12 @@ export const CreateEscrowForm = () => {
             placeholder="Deliverables: Tested escrow smart contracts, integration hooks, and verified Sepolia deployment."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            disabled={isLoading}
+            disabled={isLoading || isValidatingToken}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 resize-none"
           />
         </div>
 
-        {/* Asset Selection Toggle (ETH vs ERC-20) */}
+        {/* Asset Selection Buttons */}
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1.5">
             Escrow Asset
@@ -223,7 +276,10 @@ export const CreateEscrowForm = () => {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => setAssetType('ETH')}
+              onClick={() => {
+                setAssetType('ETH');
+                setValidationError(null);
+              }}
               className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold border transition ${
                 assetType === 'ETH'
                   ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
@@ -235,7 +291,10 @@ export const CreateEscrowForm = () => {
             </button>
             <button
               type="button"
-              onClick={() => setAssetType('ERC20')}
+              onClick={() => {
+                setAssetType('ERC20');
+                setValidationError(null);
+              }}
               className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold border transition ${
                 assetType === 'ERC20'
                   ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300'
@@ -248,24 +307,54 @@ export const CreateEscrowForm = () => {
           </div>
         </div>
 
-        {/* ERC-20 Address Input (Conditional) */}
+        {/* ERC-20 Token Selector Dropdown */}
         {assetType === 'ERC20' && (
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
-              Token Contract Address
-            </label>
-            <input
-              type="text"
-              placeholder="0x... (e.g. Sepolia testnet USDC/USDT)"
-              value={tokenAddress}
-              onChange={(e) => setTokenAddress(e.target.value.trim())}
-              disabled={isLoading}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
-              required
-            />
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
+                Select Token
+              </label>
+              <select
+                value={selectedTokenSymbol}
+                onChange={(e) => {
+                  setSelectedTokenSymbol(e.target.value);
+                  setValidationError(null);
+                }}
+                disabled={isLoading || isValidatingToken}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-indigo-500"
+              >
+                {availableTokens.map((t) => (
+                  <option key={t.symbol} value={t.symbol}>
+                    {t.name} ({t.symbol})
+                  </option>
+                ))}
+                <option value="CUSTOM">Custom Contract Address...</option>
+              </select>
+            </div>
+
+            {selectedTokenSymbol === 'CUSTOM' && (
+              <div>
+                <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
+                  Custom Contract Address
+                </label>
+                <input
+                  type="text"
+                  placeholder="0x..."
+                  value={customTokenAddress}
+                  onChange={(e) => {
+                    setCustomTokenAddress(e.target.value.trim());
+                    setValidationError(null);
+                  }}
+                  disabled={isLoading || isValidatingToken}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
+                  required
+                />
+              </div>
+            )}
           </div>
         )}
 
+        {/* Freelancer Address Field */}
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
             Freelancer Address
@@ -274,13 +363,17 @@ export const CreateEscrowForm = () => {
             type="text"
             placeholder="0x..."
             value={freelancer}
-            onChange={(e) => setFreelancer(e.target.value.trim())}
-            disabled={isLoading}
+            onChange={(e) => {
+              setFreelancer(e.target.value.trim());
+              setValidationError(null);
+            }}
+            disabled={isLoading || isValidatingToken}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
             required
           />
         </div>
 
+        {/* Arbiter Address Field */}
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
             Arbiter Address
@@ -289,36 +382,49 @@ export const CreateEscrowForm = () => {
             type="text"
             placeholder="0x..."
             value={arbiter}
-            onChange={(e) => setArbiter(e.target.value.trim())}
-            disabled={isLoading}
+            onChange={(e) => {
+              setArbiter(e.target.value.trim());
+              setValidationError(null);
+            }}
+            disabled={isLoading || isValidatingToken}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
             required
           />
         </div>
 
+        {/* Deposit Amount Field */}
         <div>
           <label className="block text-xs font-medium uppercase tracking-wider text-zinc-400 mb-1">
-            Deposit Amount {assetType === 'ETH' ? '(ETH)' : '(Tokens)'}
+            Deposit Amount {assetType === 'ETH' ? '(ETH)' : `(${selectedTokenSymbol === 'CUSTOM' ? 'Tokens' : selectedTokenSymbol})`}
           </label>
           <input
             type="number"
             step="any"
             placeholder={assetType === 'ETH' ? '0.01' : '100'}
             value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-            disabled={isLoading}
+            onChange={(e) => {
+              setDepositAmount(e.target.value);
+              setValidationError(null);
+            }}
+            disabled={isLoading || isValidatingToken}
             className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
             required
           />
         </div>
 
+        {/* Submit Button */}
         <button
           type="submit"
-          disabled={!mounted || isLoading || !isConnected}
+          disabled={!mounted || isLoading || isValidatingToken || !isConnected}
           className="w-full mt-2 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm cursor-pointer disabled:cursor-not-allowed"
         >
           {!mounted ? (
             'Loading...'
+          ) : isValidatingToken ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Verifying Token Contract...</span>
+            </>
           ) : isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />

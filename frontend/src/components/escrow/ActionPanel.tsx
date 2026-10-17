@@ -5,7 +5,8 @@ import { useAccount, useReadContract } from 'wagmi';
 import { parseEther, zeroAddress } from 'viem';
 import { EscrowState } from '@/constants/contracts';
 import { useEscrowActions } from '@/hooks/useEscrowActions';
-import { Check, Copy } from 'lucide-react';
+import { useGaslessDeliverable } from '@/hooks/useGaslessDeliverable';
+import { Check, Copy, Loader2, Sparkles } from 'lucide-react';
 
 interface ActionPanelProps {
   escrowAddress: `0x${string}`;
@@ -32,6 +33,16 @@ const ERC20_ALLOWANCE_ABI = [
   },
 ] as const;
 
+const ESCROW_NONCE_ABI = [
+  {
+    name: 'nonces',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+] as const;
+
 export function ActionPanel({
   escrowAddress,
   client,
@@ -47,19 +58,33 @@ export function ActionPanel({
   const {
     approveToken,
     fundEscrow,
-    submitDeliverable,
     releaseFunds,
     raiseDispute,
     resolveDispute,
-    isLoading,
   } = useEscrowActions(escrowAddress);
 
+  const { submitGaslessDeliverable } = useGaslessDeliverable();
+
+  // Granular action state to isolate loader spinners between buttons
+  const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState('');
   const [refundEth, setRefundEth] = useState('');
   const [payoutEth, setPayoutEth] = useState('');
   const [copied, setCopied] = useState(false);
 
   const isEth = !token || token === zeroAddress;
+
+  // Read current nonce for the freelancer to supply into EIP-712 payload
+  const { data: freelancerNonce, refetch: refetchNonce } = useReadContract({
+    address: escrowAddress,
+    abi: ESCROW_NONCE_ABI,
+    functionName: 'nonces',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  });
 
   // Read ERC-20 allowance if this escrow uses a custom token
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
@@ -82,6 +107,29 @@ export function ActionPanel({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Gasless submission execution handler
+  const handleFreelancerSubmit = async () => {
+    if (!inputUrl) return;
+    setErrorMessage(null);
+    setActiveAction('submitDeliverable');
+
+    try {
+      const currentNonce = freelancerNonce !== undefined ? freelancerNonce : BigInt(0);
+      await submitGaslessDeliverable({
+        escrowAddress,
+        deliverableUrl: inputUrl,
+        nonce: currentNonce,
+      });
+      await refetchNonce();
+      onActionSuccess();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Meta-transaction relay failed';
+      setErrorMessage(msg);
+    } finally {
+      setActiveAction(null);
+    }
+  };
+
   if (!address) {
     return (
       <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl text-center text-zinc-400">
@@ -101,6 +149,7 @@ export function ActionPanel({
   }
 
   const hasSufficientAllowance = isEth || (allowance !== undefined && amount !== undefined && allowance >= amount);
+  const isAnyLoading = activeAction !== null;
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
@@ -122,6 +171,12 @@ export function ActionPanel({
           {copied ? '✓ Link Copied' : '📋 Share Agreement Link'}
         </button>
       </div>
+
+      {errorMessage && (
+        <div className="mb-4 p-3 bg-red-950/40 border border-red-800/60 rounded-lg text-red-300 text-xs">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Deliverable Review (Client/Freelancer/Arbiter can see) */}
       {deliverableUrl && (
@@ -149,27 +204,51 @@ export function ActionPanel({
                 <button
                   onClick={async () => {
                     if (token && amount) {
-                      await approveToken(token, amount);
-                      refetchAllowance();
+                      try {
+                        setActiveAction('approve');
+                        await approveToken(token, amount);
+                        refetchAllowance();
+                      } finally {
+                        setActiveAction(null);
+                      }
                     }
                   }}
-                  disabled={isLoading}
-                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+                  disabled={isAnyLoading}
+                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
                 >
-                  {isLoading ? 'Approving Tokens...' : 'Step 1: Approve ERC-20 Tokens'}
+                  {activeAction === 'approve' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Approving Tokens...</span>
+                    </>
+                  ) : (
+                    'Step 1: Approve ERC-20 Tokens'
+                  )}
                 </button>
               ) : (
                 <button
                   onClick={async () => {
                     if (amount) {
-                      await fundEscrow(amount, token);
-                      onActionSuccess();
+                      try {
+                        setActiveAction('fund');
+                        await fundEscrow(amount, token);
+                        onActionSuccess();
+                      } finally {
+                        setActiveAction(null);
+                      }
                     }
                   }}
-                  disabled={isLoading}
-                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+                  disabled={isAnyLoading}
+                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
                 >
-                  {isLoading ? 'Confirming Deposit...' : `Deposit Agreed Funds into Vault (${isEth ? 'ETH' : 'ERC-20'})`}
+                  {activeAction === 'fund' ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Confirming Deposit...</span>
+                    </>
+                  ) : (
+                    `Deposit Agreed Funds into Vault (${isEth ? 'ETH' : 'ERC-20'})`
+                  )}
                 </button>
               )}
             </div>
@@ -189,32 +268,56 @@ export function ActionPanel({
           {currentState === EscrowState.Delivered && (
             <button
               onClick={async () => {
-                await releaseFunds();
-                onActionSuccess();
+                try {
+                  setActiveAction('release');
+                  await releaseFunds();
+                  onActionSuccess();
+                } finally {
+                  setActiveAction(null);
+                }
               }}
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+              disabled={isAnyLoading}
+              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
             >
-              {isLoading ? 'Releasing...' : 'Approve Deliverable & Release Funds'}
+              {activeAction === 'release' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Releasing Funds...</span>
+                </>
+              ) : (
+                'Approve Deliverable & Release Funds'
+              )}
             </button>
           )}
 
           {(currentState === EscrowState.Funded || currentState === EscrowState.Delivered) && (
             <button
               onClick={async () => {
-                await raiseDispute();
-                onActionSuccess();
+                try {
+                  setActiveAction('dispute');
+                  await raiseDispute();
+                  onActionSuccess();
+                } finally {
+                  setActiveAction(null);
+                }
               }}
-              disabled={isLoading}
-              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition"
+              disabled={isAnyLoading}
+              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {isLoading ? 'Raising Dispute...' : 'Raise Dispute (Invoke Arbiter)'}
+              {activeAction === 'dispute' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Raising Dispute...</span>
+                </>
+              ) : (
+                'Raise Dispute (Invoke Arbiter)'
+              )}
             </button>
           )}
         </div>
       )}
 
-      {/* 2. FREELANCER ACTIONS */}
+      {/* 2. FREELANCER ACTIONS (Zero-Gas Submission) */}
       {isFreelancer && (
         <div className="space-y-4">
           {currentState === EscrowState.Pending && (
@@ -225,25 +328,33 @@ export function ActionPanel({
 
           {currentState === EscrowState.Funded && (
             <div className="space-y-2">
-              <label className="text-xs text-zinc-400 uppercase font-medium">Proof of Work (URL)</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-zinc-400 uppercase font-medium">Proof of Work (URL)</label>
+                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> Gasless (Sponsored by Protocol)
+                </span>
+              </div>
               <input
                 type="url"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
                 placeholder="https://github.com/..."
+                disabled={isAnyLoading}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
               <button
-                onClick={async () => {
-                  if (inputUrl) {
-                    await submitDeliverable(inputUrl);
-                    onActionSuccess();
-                  }
-                }}
-                disabled={isLoading || !inputUrl}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+                onClick={handleFreelancerSubmit}
+                disabled={isAnyLoading || !inputUrl}
+                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Submitting...' : 'Submit Deliverable'}
+                {activeAction === 'submitDeliverable' ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Signing Free Submission & Relaying...</span>
+                  </>
+                ) : (
+                  'Sign Free Deliverable Submission'
+                )}
               </button>
             </div>
           )}
@@ -257,13 +368,25 @@ export function ActionPanel({
           {(currentState === EscrowState.Funded || currentState === EscrowState.Delivered) && (
             <button
               onClick={async () => {
-                await raiseDispute();
-                onActionSuccess();
+                try {
+                  setActiveAction('dispute');
+                  await raiseDispute();
+                  onActionSuccess();
+                } finally {
+                  setActiveAction(null);
+                }
               }}
-              disabled={isLoading}
-              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition"
+              disabled={isAnyLoading}
+              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              {isLoading ? 'Raising Dispute...' : 'Raise Dispute (Invoke Arbiter)'}
+              {activeAction === 'dispute' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Raising Dispute...</span>
+                </>
+              ) : (
+                'Raise Dispute (Invoke Arbiter)'
+              )}
             </button>
           )}
         </div>
@@ -283,6 +406,7 @@ export function ActionPanel({
                 value={refundEth}
                 onChange={(e) => setRefundEth(e.target.value)}
                 placeholder="0.0"
+                disabled={isAnyLoading}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -293,6 +417,7 @@ export function ActionPanel({
                 value={payoutEth}
                 onChange={(e) => setPayoutEth(e.target.value)}
                 placeholder="0.0"
+                disabled={isAnyLoading}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
               />
             </div>
@@ -300,14 +425,26 @@ export function ActionPanel({
           <button
             onClick={async () => {
               if (refundEth && payoutEth) {
-                await resolveDispute(parseEther(refundEth), parseEther(payoutEth));
-                onActionSuccess();
+                try {
+                  setActiveAction('resolve');
+                  await resolveDispute(parseEther(refundEth), parseEther(payoutEth));
+                  onActionSuccess();
+                } finally {
+                  setActiveAction(null);
+                }
               }
             }}
-            disabled={isLoading || !refundEth || !payoutEth}
-            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 text-white rounded-lg font-semibold text-sm transition"
+            disabled={isAnyLoading || !refundEth || !payoutEth}
+            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
           >
-            {isLoading ? 'Executing Split...' : 'Enforce Dispute Resolution'}
+            {activeAction === 'resolve' ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Executing Split...</span>
+              </>
+            ) : (
+              'Enforce Dispute Resolution'
+            )}
           </button>
         </div>
       )}

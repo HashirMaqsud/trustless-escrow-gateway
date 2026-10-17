@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Escrow} from "../../src/Escrow.sol";
@@ -23,7 +23,6 @@ contract MaliciousFreelancer {
     receive() external payable {
         if (attackCount < 2) {
             attackCount++;
-            // Reentrancy attempt: call releaseFunds again while execution is inside previous call
             targetEscrow.releaseFunds();
         }
     }
@@ -44,7 +43,6 @@ contract MaliciousDisputeAttacker {
     receive() external payable {
         if (attackCount < 2) {
             attackCount++;
-            // Reentrancy attempt: call resolveDispute again during payout
             targetEscrow.resolveDispute(1 ether, 0);
         }
     }
@@ -57,8 +55,11 @@ contract EscrowReentrancyTest is Test {
 
     address public client = makeAddr("client");
     address public arbiter = makeAddr("arbiter");
+    address public feeRecipient = makeAddr("feeRecipient");
 
     uint256 public constant ESCROW_AMOUNT = 1 ether;
+    uint256 public constant PROTOCOL_FEE_BPS = 100; // 1%
+    uint256 public constant TOTAL_REQUIRED = ESCROW_AMOUNT + ((ESCROW_AMOUNT * PROTOCOL_FEE_BPS) / 10000);
 
     function setUp() public {
         attackerFreelancer = new MaliciousFreelancer();
@@ -73,27 +74,27 @@ contract EscrowReentrancyTest is Test {
             client,
             address(attackerFreelancer),
             arbiter,
+            feeRecipient,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         attackerFreelancer.setTarget(address(escrow));
 
         // Client funds escrow
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         // Freelancer submits deliverable
         attackerFreelancer.submitWork("https://malicious-exploit.com");
 
-        // The reentrant call triggers ReentrancyGuard, causing low-level call to return false,
-        // which reverts execution strictly with TransferFailed
         vm.expectRevert(Escrow.TransferFailed.selector);
 
         vm.prank(client);
         escrow.releaseFunds();
 
-        // State check: Ensure funds were not stolen
+        // State check: Ensure locked escrow funds were not stolen
         assertEq(address(escrow).balance, ESCROW_AMOUNT);
     }
 
@@ -102,21 +103,21 @@ contract EscrowReentrancyTest is Test {
             address(attackerClient),
             makeAddr("honestFreelancer"),
             arbiter,
+            feeRecipient,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         attackerClient.setTarget(address(escrow));
 
         // Attacker client funds and disputes
         vm.prank(address(attackerClient));
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(address(attackerClient));
         escrow.raiseDispute();
 
-        // The reentrant call triggers ReentrancyGuard, causing low-level call to return false,
-        // which reverts execution strictly with TransferFailed
         vm.expectRevert(Escrow.TransferFailed.selector);
 
         vm.prank(arbiter);

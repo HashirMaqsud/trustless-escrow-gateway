@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EscrowFactory} from "../../src/EscrowFactory.sol";
@@ -27,12 +27,14 @@ contract EscrowIntegrationTest is Test {
     address public clientB = makeAddr("clientB");
     address public freelancerB = makeAddr("freelancerB");
     address public arbiter = makeAddr("arbiter");
+    address public feeRecipient = makeAddr("feeRecipient");
 
     uint256 public constant ETH_PAYMENT = 2 ether;
     uint256 public constant TOKEN_PAYMENT = 500 ether;
+    uint256 public constant FEE_BPS = 100; // 1%
 
     function setUp() public {
-        factory = new EscrowFactory();
+        factory = new EscrowFactory(feeRecipient, FEE_BPS);
         token = new IntegrationMockERC20();
 
         // Fund accounts
@@ -54,11 +56,14 @@ contract EscrowIntegrationTest is Test {
         );
 
         Escrow escrow = Escrow(escrowAddr);
+        uint256 fee = (ETH_PAYMENT * FEE_BPS) / 10000;
+        uint256 totalRequired = ETH_PAYMENT + fee;
 
-        // Step 2: Client A funds the deployed Escrow directly
+        // Step 2: Client A funds the deployed Escrow directly with deposit + fee
         vm.prank(clientA);
-        escrow.fund{value: ETH_PAYMENT}();
+        escrow.fund{value: totalRequired}();
         assertEq(address(escrow).balance, ETH_PAYMENT);
+        assertEq(feeRecipient.balance, fee);
         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));
 
         // Step 3: Freelancer A submits work
@@ -91,14 +96,17 @@ contract EscrowIntegrationTest is Test {
         );
 
         Escrow escrow = Escrow(escrowAddr);
+        uint256 fee = (TOKEN_PAYMENT * FEE_BPS) / 10000;
+        uint256 totalRequired = TOKEN_PAYMENT + fee;
 
         // Step 2: Client B approves token transfer and funds Escrow
         vm.startPrank(clientB);
-        token.approve(escrowAddr, TOKEN_PAYMENT);
+        token.approve(escrowAddr, totalRequired);
         escrow.fund();
         vm.stopPrank();
 
         assertEq(token.balanceOf(escrowAddr), TOKEN_PAYMENT);
+        assertEq(token.balanceOf(feeRecipient), fee);
         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));
 
         // Step 3: Freelancer B submits work
@@ -187,12 +195,15 @@ contract EscrowIntegrationTest is Test {
         address escrow2Addr = factory.createEscrow(freelancerB, arbiter, address(token), 100 ether);
         Escrow escrow2 = Escrow(escrow2Addr);
 
+        uint256 fee1 = (1 ether * FEE_BPS) / 10000;
+        uint256 fee2 = (100 ether * FEE_BPS) / 10000;
+
         // Both fund concurrently
         vm.prank(clientA);
-        escrow1.fund{value: 1 ether}();
+        escrow1.fund{value: 1 ether + fee1}();
 
         vm.startPrank(clientB);
-        token.approve(escrow2Addr, 100 ether);
+        token.approve(escrow2Addr, 100 ether + fee2);
         escrow2.fund();
         vm.stopPrank();
 
@@ -225,8 +236,9 @@ contract EscrowIntegrationTest is Test {
         address escrowAddr = factory.createEscrow(freelancerA, arbiter, address(0), 1 ether);
         Escrow escrow = Escrow(escrowAddr);
 
+        uint256 fee = (1 ether * FEE_BPS) / 10000;
         vm.prank(clientA);
-        escrow.fund{value: 1 ether}();
+        escrow.fund{value: 1 ether + fee}();
 
         // Must revert because state is Funded, not Delivered
         vm.expectRevert(

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {Escrow} from "../../src/Escrow.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // Mock ERC20 Token for testing token branches
 contract MockERC20 is ERC20 {
@@ -13,6 +15,30 @@ contract MockERC20 is ERC20 {
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+}
+
+// Mock ERC20 Token that intentionally fails transfers to test revert branches
+contract FailingMockERC20 is ERC20 {
+    bool public shouldFail;
+
+    constructor() ERC20("FailToken", "FTK") {
+        _mint(msg.sender, 1000 ether);
+    }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function setShouldFail(bool _fail) external {
+        shouldFail = _fail;
+    }
+
+    function transfer(address to, uint256 amount) public override returns (bool) {
+        if (shouldFail) {
+            return false;
+        }
+        return super.transfer(to, amount);
     }
 }
 
@@ -30,8 +56,12 @@ contract EscrowUnitTest is Test {
     address public client = makeAddr("client");
     address public freelancer = makeAddr("freelancer");
     address public arbiter = makeAddr("arbiter");
+    address public feeRecipient = makeAddr("feeRecipient");
 
     uint256 public constant ESCROW_AMOUNT = 1 ether;
+    uint256 public constant PROTOCOL_FEE_BPS = 100; // 1%
+    uint256 public constant FEE_AMOUNT = (ESCROW_AMOUNT * PROTOCOL_FEE_BPS) / 10000;
+    uint256 public constant TOTAL_REQUIRED = ESCROW_AMOUNT + FEE_AMOUNT;
 
     function setUp() public {
         vm.deal(client, 10 ether);
@@ -40,8 +70,10 @@ contract EscrowUnitTest is Test {
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
     }
 
@@ -51,40 +83,48 @@ contract EscrowUnitTest is Test {
         assertEq(escrow.CLIENT(), client);
         assertEq(escrow.FREELANCER(), freelancer);
         assertEq(escrow.ARBITER(), arbiter);
+        assertEq(escrow.FEE_RECIPIENT(), feeRecipient);
         assertEq(address(escrow.TOKEN()), address(0));
         assertEq(escrow.AMOUNT(), ESCROW_AMOUNT);
+        assertEq(escrow.FEE_AMOUNT(), FEE_AMOUNT);
         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Pending));
     }
 
     function test_RevertIf_ClientZeroAddressOnDeploy() public {
         vm.expectRevert(Escrow.Unauthorized.selector);
-        new Escrow(address(0), freelancer, arbiter, address(0), ESCROW_AMOUNT);
+        new Escrow(address(0), freelancer, arbiter, feeRecipient, address(0), ESCROW_AMOUNT, PROTOCOL_FEE_BPS);
     }
 
     function test_RevertIf_FreelancerZeroAddressOnDeploy() public {
         vm.expectRevert(Escrow.Unauthorized.selector);
-        new Escrow(client, address(0), arbiter, address(0), ESCROW_AMOUNT);
+        new Escrow(client, address(0), arbiter, feeRecipient, address(0), ESCROW_AMOUNT, PROTOCOL_FEE_BPS);
     }
 
     function test_RevertIf_ArbiterZeroAddressOnDeploy() public {
         vm.expectRevert(Escrow.Unauthorized.selector);
-        new Escrow(client, freelancer, address(0), address(0), ESCROW_AMOUNT);
+        new Escrow(client, freelancer, address(0), feeRecipient, address(0), ESCROW_AMOUNT, PROTOCOL_FEE_BPS);
+    }
+
+    function test_RevertIf_FeeRecipientZeroAddressOnDeploy() public {
+        vm.expectRevert(Escrow.Unauthorized.selector);
+        new Escrow(client, freelancer, arbiter, address(0), address(0), ESCROW_AMOUNT, PROTOCOL_FEE_BPS);
     }
 
     function test_RevertIf_ZeroAmountOnDeploy() public {
         vm.expectRevert(Escrow.InvalidDepositAmount.selector);
-        new Escrow(client, freelancer, arbiter, address(0), 0);
+        new Escrow(client, freelancer, arbiter, feeRecipient, address(0), 0, PROTOCOL_FEE_BPS);
     }
 
     // --- Native ETH Funding Tests ---
 
     function test_Fund_NativeEth_Success() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));
         assertEq(address(escrow).balance, ESCROW_AMOUNT);
-        assertEq(client.balance, 10 ether - ESCROW_AMOUNT);
+        assertEq(feeRecipient.balance, FEE_AMOUNT);
+        assertEq(client.balance, 10 ether - TOTAL_REQUIRED);
     }
 
     function test_RevertIf_FundNotClient() public {
@@ -93,7 +133,7 @@ contract EscrowUnitTest is Test {
 
         vm.expectRevert(Escrow.Unauthorized.selector);
         vm.prank(attacker);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
     }
 
     function test_RevertIf_FundWrongAmount() public {
@@ -106,7 +146,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_FundNotInPendingState() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -116,7 +156,7 @@ contract EscrowUnitTest is Test {
             )
         );
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
     }
 
     function test_RevertIf_DirectEthTransfer() public {
@@ -130,7 +170,7 @@ contract EscrowUnitTest is Test {
 
     function test_SubmitDeliverable_Success() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         string memory sampleUrl = "https://github.com/project/deliverable";
         vm.prank(freelancer);
@@ -142,7 +182,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_SubmitNotFreelancer() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.expectRevert(Escrow.Unauthorized.selector);
         vm.prank(client);
@@ -165,7 +205,7 @@ contract EscrowUnitTest is Test {
 
     function test_ReleaseFunds_Success() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         escrow.submitDeliverable("https://github.com/project/deliverable");
@@ -182,7 +222,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_ReleaseNotClient() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         escrow.submitDeliverable("https://github.com/project/deliverable");
@@ -194,7 +234,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_ReleaseBeforeDelivery() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -214,12 +254,14 @@ contract EscrowUnitTest is Test {
             client,
             address(rejectingFreelancer),
             arbiter,
+            feeRecipient,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         vm.prank(client);
-        failEscrow.fund{value: ESCROW_AMOUNT}();
+        failEscrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(address(rejectingFreelancer));
         failEscrow.submitDeliverable("https://github.com/project/rejected");
@@ -233,7 +275,7 @@ contract EscrowUnitTest is Test {
 
     function test_Dispute_RaisedByFreelancer() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         escrow.raiseDispute();
@@ -243,7 +285,7 @@ contract EscrowUnitTest is Test {
 
     function test_Dispute_RaisedInDeliveredState() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         escrow.submitDeliverable("https://github.com/project/work");
@@ -256,7 +298,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_DisputeRaisedByUnauthorized() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         address attacker = makeAddr("attacker");
         vm.expectRevert(Escrow.Unauthorized.selector);
@@ -278,7 +320,7 @@ contract EscrowUnitTest is Test {
 
     function test_Dispute_FullLifecycleAndSplit() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(client);
         escrow.raiseDispute();
@@ -300,7 +342,7 @@ contract EscrowUnitTest is Test {
 
     function test_Dispute_ResolveFullRefundToClient() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(client);
         escrow.raiseDispute();
@@ -317,7 +359,7 @@ contract EscrowUnitTest is Test {
 
     function test_Dispute_ResolveFullPayoutToFreelancer() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(client);
         escrow.raiseDispute();
@@ -334,7 +376,7 @@ contract EscrowUnitTest is Test {
 
     function test_RevertIf_DisputeSplitMismatch() public {
         vm.prank(client);
-        escrow.fund{value: ESCROW_AMOUNT}();
+        escrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         escrow.raiseDispute();
@@ -354,13 +396,15 @@ contract EscrowUnitTest is Test {
             address(rejectingClient),
             freelancer,
             arbiter,
+            feeRecipient,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         vm.deal(address(rejectingClient), 5 ether);
         vm.prank(address(rejectingClient));
-        failEscrow.fund{value: ESCROW_AMOUNT}();
+        failEscrow.fund{value: TOTAL_REQUIRED}();
 
         vm.prank(freelancer);
         failEscrow.raiseDispute();
@@ -378,8 +422,10 @@ contract EscrowUnitTest is Test {
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(mockToken),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         vm.expectRevert(Escrow.InvalidDepositAmount.selector);
@@ -389,22 +435,25 @@ contract EscrowUnitTest is Test {
 
     function test_TokenEscrow_FullLifecycle_Success() public {
         MockERC20 mockToken = new MockERC20();
-        mockToken.mint(client, ESCROW_AMOUNT);
+        mockToken.mint(client, TOTAL_REQUIRED);
 
         Escrow tokenEscrow = new Escrow(
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(mockToken),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         vm.startPrank(client);
-        mockToken.approve(address(tokenEscrow), ESCROW_AMOUNT);
+        mockToken.approve(address(tokenEscrow), TOTAL_REQUIRED);
         tokenEscrow.fund();
         vm.stopPrank();
 
         assertEq(mockToken.balanceOf(address(tokenEscrow)), ESCROW_AMOUNT);
+        assertEq(mockToken.balanceOf(feeRecipient), FEE_AMOUNT);
         assertEq(uint256(tokenEscrow.currentState()), uint256(Escrow.State.Funded));
 
         vm.prank(freelancer);
@@ -420,18 +469,20 @@ contract EscrowUnitTest is Test {
 
     function test_TokenEscrow_Dispute_ResolveSplit() public {
         MockERC20 mockToken = new MockERC20();
-        mockToken.mint(client, ESCROW_AMOUNT);
+        mockToken.mint(client, TOTAL_REQUIRED);
 
         Escrow tokenEscrow = new Escrow(
             client,
             freelancer,
             arbiter,
+            feeRecipient,
             address(mockToken),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         vm.startPrank(client);
-        mockToken.approve(address(tokenEscrow), ESCROW_AMOUNT);
+        mockToken.approve(address(tokenEscrow), TOTAL_REQUIRED);
         tokenEscrow.fund();
         vm.stopPrank();
 
@@ -448,5 +499,45 @@ contract EscrowUnitTest is Test {
         assertEq(mockToken.balanceOf(client), clientRefund);
         assertEq(mockToken.balanceOf(freelancer), freelancerPayout);
         assertEq(mockToken.balanceOf(address(tokenEscrow)), 0);
+    }
+
+    function test_RevertIf_TokenTransferFailsOnRelease() public {
+        FailingMockERC20 failingToken = new FailingMockERC20();
+        
+        Escrow failTokenEscrow = new Escrow(
+            client,
+            freelancer,
+            arbiter,
+            feeRecipient,
+            address(failingToken),
+            ESCROW_AMOUNT,
+            0
+        );
+
+        // Mint tokens to client
+        failingToken.mint(client, ESCROW_AMOUNT);
+
+        // Approve and fund
+        vm.startPrank(client);
+        failingToken.approve(address(failTokenEscrow), ESCROW_AMOUNT);
+        failTokenEscrow.fund();
+        vm.stopPrank();
+
+        // Deliver work
+        vm.prank(freelancer);
+        failTokenEscrow.submitDeliverable("https://github.com/project/work");
+
+        // Enable transfer failure on the mock token
+        failingToken.setShouldFail(true);
+
+        // SafeERC20 throws SafeERC20FailedOperation when transfer returns false
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SafeERC20.SafeERC20FailedOperation.selector,
+                address(failingToken)
+            )
+        );
+        vm.prank(client);
+        failTokenEscrow.releaseFunds();
     }
 }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
 import {EscrowFactory} from "../../src/EscrowFactory.sol";
@@ -12,8 +12,10 @@ contract EscrowFactoryUnitTest is Test {
     address public client = makeAddr("client");
     address public freelancer = makeAddr("freelancer");
     address public arbiter = makeAddr("arbiter");
+    address public feeRecipient = makeAddr("feeRecipient");
 
     uint256 public constant ESCROW_AMOUNT = 1 ether;
+    uint256 public constant PROTOCOL_FEE_BPS = 100; // 1%
 
     // Event signature matching EscrowFactory.EscrowCreated
     event EscrowCreated(
@@ -22,23 +24,26 @@ contract EscrowFactoryUnitTest is Test {
         address indexed freelancer,
         address arbiter,
         address token,
-        uint256 amount
+        uint256 amount,
+        uint256 feeBps
     );
 
     function setUp() public {
-        factory = new EscrowFactory();
+        factory = new EscrowFactory(feeRecipient, PROTOCOL_FEE_BPS);
     }
 
     function test_InitialState() public view {
         assertEq(factory.getAllEscrows().length, 0);
         assertEq(factory.getUserEscrows(client).length, 0);
         assertEq(factory.getUserEscrows(freelancer).length, 0);
+        assertEq(factory.feeRecipient(), feeRecipient);
+        assertEq(factory.feeBps(), PROTOCOL_FEE_BPS);
     }
 
     function test_CreateEscrow_NativeEth_Success() public {
         vm.prank(client);
 
-        // Expect EscrowCreated event (escrowAddress check is skipped via false since it is generated at runtime)
+        // Expect EscrowCreated event with updated feeBps parameter
         vm.expectEmit(false, true, true, true);
         emit EscrowCreated(
             address(0),
@@ -46,7 +51,8 @@ contract EscrowFactoryUnitTest is Test {
             freelancer,
             arbiter,
             address(0),
-            ESCROW_AMOUNT
+            ESCROW_AMOUNT,
+            PROTOCOL_FEE_BPS
         );
 
         address deployedEscrow = factory.createEscrow(
@@ -63,6 +69,7 @@ contract EscrowFactoryUnitTest is Test {
         assertEq(escrowInstance.CLIENT(), client);
         assertEq(escrowInstance.FREELANCER(), freelancer);
         assertEq(escrowInstance.ARBITER(), arbiter);
+        assertEq(escrowInstance.FEE_RECIPIENT(), feeRecipient);
         assertEq(escrowInstance.AMOUNT(), ESCROW_AMOUNT);
 
         // Verify global and user registries
@@ -128,5 +135,15 @@ contract EscrowFactoryUnitTest is Test {
         vm.expectRevert(Escrow.InvalidDepositAmount.selector);
         vm.prank(client);
         factory.createEscrow(freelancer, arbiter, address(0), 0);
+    }
+
+    function test_RevertIf_ConstructorZeroAddressFeeRecipient() public {
+        vm.expectRevert("Zero address fee recipient");
+        new EscrowFactory(address(0), PROTOCOL_FEE_BPS);
+    }
+
+    function test_RevertIf_ConstructorFeeBpsExceedsMaximum() public {
+        vm.expectRevert("Fee bps exceeds maximum");
+        new EscrowFactory(feeRecipient, 1001);
     }
 }

@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { formatEther } from 'viem';
 import { useAccount } from 'wagmi';
 import { useEscrowState } from '@/hooks/useEscrowState';
+import { useTokenMetadata } from '@/hooks/useTokenSymbol';
 import { EscrowState } from '@/constants/contracts';
 import { getEscrowMetadata, setEscrowMetadata, toggleHideEscrow, isEscrowHidden } from '@/utils/escrowMetadata';
 import { ExternalLink, ArrowRight, EyeOff, Eye, Pencil, Check, X } from 'lucide-react';
@@ -24,7 +24,10 @@ const stateLabels: Record<EscrowState, { label: string; color: string }> = {
 
 export function EscrowCard({ escrowAddress, onVisibilityChange }: EscrowCardProps) {
   const { address } = useAccount();
-  const { client, freelancer, arbiter, amount, currentState, isLoading } = useEscrowState(escrowAddress);
+  const { client, freelancer, arbiter, token, amount, currentState, isLoading } = useEscrowState(escrowAddress);
+
+  // Dynamically resolve symbol, decimals, and custom unit formatting
+  const { symbol, formatAmount } = useTokenMetadata(token);
 
   const [title, setTitle] = useState(() => getEscrowMetadata(escrowAddress).title || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -135,10 +138,11 @@ export function EscrowCard({ escrowAddress, onVisibilityChange }: EscrowCardProp
           )}
         </div>
 
+        {/* Dynamic Vault Value & Asset Symbol */}
         <div className="mb-4">
           <span className="text-xs text-zinc-500 font-medium">Vault Value</span>
           <p className="text-xl font-bold text-white mt-0.5">
-            {amount ? `${formatEther(amount)} ETH` : '0 ETH'}
+            {formatAmount(amount)} {symbol}
           </p>
         </div>
 
