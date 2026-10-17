@@ -3,7 +3,6 @@ import { createWalletClient, createPublicClient, http, isAddress, getAddress } f
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 
-// ABI fragment covering EIP-712 gasless entrypoints
 const ESCROW_RELAY_ABI = [
   {
     type: 'function',
@@ -35,7 +34,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, escrowAddress, deadline, signature, deliverableUrl, clientRefund, freelancerPayout } = body;
 
-    // Validate incoming contract address
     if (!escrowAddress || !isAddress(escrowAddress)) {
       return NextResponse.json({ error: 'Invalid escrow contract address' }, { status: 400 });
     }
@@ -49,36 +47,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Relayer private key is not configured on server' }, { status: 500 });
     }
 
-    // Initialize viem relayer account and clients
     const formattedKey = relayerKey.startsWith('0x') ? (relayerKey as `0x${string}`) : (`0x${relayerKey}` as `0x${string}`);
     const account = privateKeyToAccount(formattedKey);
-    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://rpc.sepolia.org';
+    const rpcUrl = process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+
+    const transport = http(rpcUrl);
 
     const publicClient = createPublicClient({
       chain: sepolia,
-      transport: http(rpcUrl),
+      transport,
     });
 
     const walletClient = createWalletClient({
       account,
       chain: sepolia,
-      transport: http(rpcUrl),
+      transport,
     });
 
     const targetEscrow = getAddress(escrowAddress);
     let txHash: `0x${string}`;
 
-    // Dispatch corresponding signed execution
     if (action === 'submitDeliverable') {
       if (!deliverableUrl || typeof deliverableUrl !== 'string') {
         return NextResponse.json({ error: 'Deliverable URL is required' }, { status: 400 });
       }
 
+      // Explicit gas limit (600,000) prevents EVM estimation failure on complex storage writes
       txHash = await walletClient.writeContract({
         address: targetEscrow,
         abi: ESCROW_RELAY_ABI,
         functionName: 'submitDeliverableWithSig',
         args: [deliverableUrl, BigInt(deadline), signature],
+        gas: 600000n,
       });
     } else if (action === 'resolveDispute') {
       if (clientRefund === undefined || freelancerPayout === undefined) {
@@ -90,12 +90,12 @@ export async function POST(req: NextRequest) {
         abi: ESCROW_RELAY_ABI,
         functionName: 'resolveDisputeWithSig',
         args: [BigInt(clientRefund), BigInt(freelancerPayout), BigInt(deadline), signature],
+        gas: 600000n,
       });
     } else {
       return NextResponse.json({ error: 'Unsupported relay action' }, { status: 400 });
     }
 
-    // Wait for transaction receipt confirmation
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
 
     return NextResponse.json({

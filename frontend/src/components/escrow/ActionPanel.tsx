@@ -80,9 +80,9 @@ export function ActionPanel({
     address: escrowAddress,
     abi: ESCROW_NONCE_ABI,
     functionName: 'nonces',
-    args: address ? [address] : undefined,
+    args: freelancer ? [freelancer] : undefined,
     query: {
-      enabled: !!address,
+      enabled: !!freelancer,
     },
   });
 

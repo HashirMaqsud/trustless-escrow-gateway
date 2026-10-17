@@ -4,7 +4,6 @@ import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { zeroAddress } from 'viem';
 import { ESCROW_ABI } from '@/constants/contracts';
 
-// Minimal ERC-20 ABI for allowance approval
 const ERC20_ABI = [
   {
     name: 'approve',
@@ -26,7 +25,6 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
       hash,
     });
 
-  // Helper to prevent unhandled rejection overlays on user cancel
   const executeCall = async (fn: () => Promise<`0x${string}`>) => {
     try {
       return await fn();
@@ -41,33 +39,37 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
     }
   };
 
-  // 0. Approve ERC-20 tokens for the escrow contract
   const approveToken = async (tokenAddress: `0x${string}`, amount: bigint) => {
+    // Include 1% protocol fee in approval
+    const fee = (amount * BigInt(100)) / BigInt(10000);
+    const totalRequired = amount + fee;
+
     return executeCall(() =>
       writeContractAsync({
         address: tokenAddress,
         abi: ERC20_ABI,
         functionName: 'approve',
-        args: [escrowAddress, amount],
+        args: [escrowAddress, totalRequired],
       })
     );
   };
 
-  // 1. Client deposits agreed funds (supports native ETH and ERC-20)
   const fundEscrow = async (amount: bigint, tokenAddress?: `0x${string}`) => {
     const isEth = !tokenAddress || tokenAddress === zeroAddress;
+    // Escrow contract requires msg.value == AMOUNT + fee (fee = (AMOUNT * FEE_BPS) / 10000)
+    const fee = (amount * BigInt(100)) / BigInt(10000);
+    const totalDeposit = amount + fee;
 
     return executeCall(() =>
       writeContractAsync({
         address: escrowAddress,
         abi: ESCROW_ABI,
         functionName: 'fund',
-        value: isEth ? amount : BigInt(0),
+        value: isEth ? totalDeposit : BigInt(0),
       })
     );
   };
 
-  // 2. Freelancer submits project URL
   const submitDeliverable = async (url: string) => {
     return executeCall(() =>
       writeContractAsync({
@@ -79,7 +81,6 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
     );
   };
 
-  // 3. Client approves and releases payment
   const releaseFunds = async () => {
     return executeCall(() =>
       writeContractAsync({
@@ -90,7 +91,6 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
     );
   };
 
-  // 4. Client or Freelancer raises dispute
   const raiseDispute = async () => {
     return executeCall(() =>
       writeContractAsync({
@@ -101,7 +101,6 @@ export function useEscrowActions(escrowAddress: `0x${string}`) {
     );
   };
 
-  // 5. Arbiter resolves dispute with payout split
   const resolveDispute = async (clientRefund: bigint, freelancerPayout: bigint) => {
     return executeCall(() =>
       writeContractAsync({
