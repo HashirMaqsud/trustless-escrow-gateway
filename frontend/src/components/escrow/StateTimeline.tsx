@@ -1,16 +1,17 @@
 'use client';
 
 import { EscrowState } from '@/constants/contracts';
+import { Check, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 interface StateTimelineProps {
   currentState: EscrowState | undefined;
 }
 
 const steps = [
-  { id: EscrowState.Pending, label: 'Pending Deposit', desc: 'Awaiting client funds' },
-  { id: EscrowState.Funded, label: 'Funded', desc: 'Work in progress' },
-  { id: EscrowState.Delivered, label: 'Delivered', desc: 'Pending client review' },
-  { id: EscrowState.Completed, label: 'Completed', desc: 'Funds settled on-chain' },
+  { id: EscrowState.Pending, label: 'Pending Deposit' },
+  { id: EscrowState.Funded, label: 'Funded' },
+  { id: EscrowState.Delivered, label: 'Delivered' },
+  { id: EscrowState.Completed, label: 'Settled' },
 ];
 
 export function StateTimeline({ currentState }: StateTimelineProps) {
@@ -18,15 +19,12 @@ export function StateTimeline({ currentState }: StateTimelineProps) {
 
   if (isDisputed) {
     return (
-      <div className="w-full bg-red-950/30 border border-red-800/60 rounded-xl p-4 sm:p-6 mb-8 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-900/60 text-red-300 rounded-full text-xs font-semibold mb-2">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-          Dispute Active
+      <div className="w-full bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-5 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-red-600" />
+          <span className="text-xs font-bold text-red-900">Vault Under Arbitration</span>
         </div>
-        <h3 className="text-lg font-bold text-white">Under Arbitration</h3>
-        <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-md mx-auto">
-          Funds are locked in arbitration. The assigned arbiter will review the terms and execute a split or refund.
-        </p>
+        <span className="text-[11px] text-red-700 font-medium">Awaiting arbiter settlement ruling</span>
       </div>
     );
   }
@@ -34,35 +32,37 @@ export function StateTimeline({ currentState }: StateTimelineProps) {
   const activeIndex = currentState !== undefined ? currentState : 0;
 
   return (
-    <div className="w-full bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 sm:p-6 mb-8">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative">
+    <div className="w-full bg-white border border-slate-200 rounded-xl px-5 py-3.5 mb-5 shadow-xs">
+      <div className="flex items-center justify-between gap-2">
         {steps.map((step, idx) => {
           const isDone = activeIndex > step.id || activeIndex === EscrowState.Completed;
           const isCurrent = activeIndex === step.id && activeIndex !== EscrowState.Completed;
 
           return (
-            <div key={step.id} className="flex flex-col items-center text-center relative z-10">
-              <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                  isDone
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950'
-                    : isCurrent
-                    ? 'bg-indigo-600 text-white ring-4 ring-indigo-500/20 shadow-lg shadow-indigo-950'
-                    : 'bg-zinc-800 text-zinc-500'
-                }`}
-              >
-                {isDone ? '✓' : idx + 1}
+            <div key={step.id} className="flex items-center gap-2 flex-1 last:flex-none">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 transition-all ${
+                    isDone
+                      ? 'bg-emerald-600 text-white'
+                      : isCurrent
+                      ? 'bg-red-600 text-white ring-3 ring-red-100'
+                      : 'bg-slate-100 text-slate-400 border border-slate-200'
+                  }`}
+                >
+                  {isDone ? <Check className="w-3 h-3" /> : idx + 1}
+                </div>
+                <span
+                  className={`text-xs font-bold tracking-tight uppercase ${
+                    isDone ? 'text-emerald-700' : isCurrent ? 'text-red-600' : 'text-slate-400'
+                  }`}
+                >
+                  {step.label}
+                </span>
               </div>
-              <span
-                className={`mt-2 text-xs font-semibold uppercase tracking-wider ${
-                  isDone ? 'text-emerald-400' : isCurrent ? 'text-indigo-400' : 'text-zinc-500'
-                }`}
-              >
-                {step.label}
-              </span>
-              <span className="text-[11px] text-zinc-400 mt-0.5 hidden sm:block">
-                {step.desc}
-              </span>
+              {idx < steps.length - 1 && (
+                <div className={`h-[2px] flex-1 mx-3 rounded ${isDone ? 'bg-emerald-400' : 'bg-slate-200'}`} />
+              )}
             </div>
           );
         })}

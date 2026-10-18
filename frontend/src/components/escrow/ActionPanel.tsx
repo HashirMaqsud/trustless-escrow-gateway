@@ -6,7 +6,7 @@ import { parseEther, zeroAddress } from 'viem';
 import { EscrowState } from '@/constants/contracts';
 import { useEscrowActions } from '@/hooks/useEscrowActions';
 import { useGaslessDeliverable } from '@/hooks/useGaslessDeliverable';
-import { Check, Copy, Loader2, Sparkles } from 'lucide-react';
+import { Check, Copy, Loader2, Sparkles, Shield, AlertTriangle } from 'lucide-react';
 
 interface ActionPanelProps {
   escrowAddress: `0x${string}`;
@@ -65,7 +65,6 @@ export function ActionPanel({
 
   const { submitGaslessDeliverable } = useGaslessDeliverable();
 
-  // Granular action state to isolate loader spinners between buttons
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputUrl, setInputUrl] = useState('');
@@ -75,7 +74,6 @@ export function ActionPanel({
 
   const isEth = !token || token === zeroAddress;
 
-  // Read current nonce for the freelancer to supply into EIP-712 payload
   const { data: freelancerNonce, refetch: refetchNonce } = useReadContract({
     address: escrowAddress,
     abi: ESCROW_NONCE_ABI,
@@ -86,7 +84,6 @@ export function ActionPanel({
     },
   });
 
-  // Read ERC-20 allowance if this escrow uses a custom token
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: !isEth ? token : undefined,
     abi: ERC20_ALLOWANCE_ABI,
@@ -107,7 +104,6 @@ export function ActionPanel({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Gasless submission execution handler
   const handleFreelancerSubmit = async () => {
     if (!inputUrl) return;
     setErrorMessage(null);
@@ -132,17 +128,17 @@ export function ActionPanel({
 
   if (!address) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl text-center text-zinc-400">
-        Connect your wallet to interact with this contract.
+      <div className="bg-white border border-slate-200 p-8 rounded-xl text-center text-slate-500 shadow-xs">
+        Connect your Web3 wallet to authorize settlement actions.
       </div>
     );
   }
 
   if (!isClient && !isFreelancer && !isArbiter) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl text-center">
-        <p className="text-zinc-400 text-sm">
-          Connected wallet is an <span className="text-amber-400 font-medium">Observer</span>. Only designated participants (Client, Freelancer, Arbiter) can sign transactions.
+      <div className="bg-white border border-slate-200 p-6 rounded-xl text-center shadow-xs">
+        <p className="text-slate-600 text-xs">
+          Connected wallet is an <span className="text-amber-700 font-bold">Observer</span>. Only designated stakeholders (Client, Freelancer, Arbiter) can sign transactions.
         </p>
       </div>
     );
@@ -152,42 +148,43 @@ export function ActionPanel({
   const isAnyLoading = activeAction !== null;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-zinc-800">
+    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
         <div>
-          <h3 className="text-lg font-bold text-white">
-            Available Actions
+          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-red-600" />
+            Authorized Settlement Panel
           </h3>
-          <span className="text-xs text-indigo-400 font-medium">
-            Active Role: {isClient ? 'Client (Vault Owner)' : isFreelancer ? 'Freelancer (Service Provider)' : 'Arbiter (Mediator)'}
+          <span className="text-xs text-red-600 font-semibold">
+            Stakeholder Role: {isClient ? 'Client (Vault Originator)' : isFreelancer ? 'Beneficiary (Freelancer)' : 'Appointed Arbiter'}
           </span>
         </div>
 
         <button
           onClick={handleCopyLink}
-          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold rounded-lg border border-zinc-700 flex items-center justify-center gap-1.5 transition self-start sm:self-auto"
+          className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold rounded-lg border border-slate-200 flex items-center gap-1.5 transition self-start sm:self-auto"
         >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? '✓ Link Copied' : '📋 Share Agreement Link'}
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+          {copied ? 'Link Copied' : 'Share Settlement Link'}
         </button>
       </div>
 
       {errorMessage && (
-        <div className="mb-4 p-3 bg-red-950/40 border border-red-800/60 rounded-lg text-red-300 text-xs">
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-xs font-medium">
           {errorMessage}
         </div>
       )}
 
-      {/* Deliverable Review (Client/Freelancer/Arbiter can see) */}
+      {/* Deliverable Link Display */}
       {deliverableUrl && (
-        <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mb-6">
-          <span className="text-xs uppercase text-zinc-500 font-semibold tracking-wider">Submitted Deliverable</span>
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+          <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold block">Submitted Deliverable Proof</span>
           <p className="mt-1 break-all">
             <a
               href={deliverableUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-indigo-400 hover:text-indigo-300 underline text-sm"
+              className="text-red-600 hover:text-red-700 underline text-xs font-medium"
             >
               {deliverableUrl}
             </a>
@@ -214,15 +211,15 @@ export function ActionPanel({
                     }
                   }}
                   disabled={isAnyLoading}
-                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2"
                 >
                   {activeAction === 'approve' ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Approving Tokens...</span>
+                      <span>Approving ERC-20 Tokens...</span>
                     </>
                   ) : (
-                    'Step 1: Approve ERC-20 Tokens'
+                    'Step 1: Approve Token Allowance'
                   )}
                 </button>
               ) : (
@@ -239,15 +236,15 @@ export function ActionPanel({
                     }
                   }}
                   disabled={isAnyLoading}
-                  className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
                 >
                   {activeAction === 'fund' ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Confirming Deposit...</span>
+                      <span>Confirming Settlement Deposit...</span>
                     </>
                   ) : (
-                    `Deposit Agreed Funds into Vault (${isEth ? 'ETH' : 'ERC-20'})`
+                    `Deposit Settlement Funds into Vault (${isEth ? 'ETH' : 'ERC-20'})`
                   )}
                 </button>
               )}
@@ -255,12 +252,12 @@ export function ActionPanel({
           )}
 
           {currentState === EscrowState.Funded && (
-            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center">
-              <p className="text-sm text-zinc-300 font-medium">
-                Vault is funded. Awaiting deliverable submission from freelancer.
+            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center">
+              <p className="text-xs text-slate-800 font-semibold">
+                Vault is funded. Awaiting deliverable submission from beneficiary.
               </p>
-              <p className="text-xs text-zinc-500 mt-1">
-                Share this page URL with your freelancer so they can submit their work.
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Share this agreement page with your freelancer to submit proof of work.
               </p>
             </div>
           )}
@@ -277,15 +274,15 @@ export function ActionPanel({
                 }
               }}
               disabled={isAnyLoading}
-              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
+              className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               {activeAction === 'release' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Releasing Funds...</span>
+                  <span>Releasing Vault Funds...</span>
                 </>
               ) : (
-                'Approve Deliverable & Release Funds'
+                'Approve Deliverable & Disburse Payout'
               )}
             </button>
           )}
@@ -302,66 +299,69 @@ export function ActionPanel({
                 }
               }}
               disabled={isAnyLoading}
-              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2 px-4 bg-white hover:bg-red-50 border border-red-300 text-red-700 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {activeAction === 'dispute' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Raising Dispute...</span>
+                  <span>Submitting Dispute...</span>
                 </>
               ) : (
-                'Raise Dispute (Invoke Arbiter)'
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Raise Dispute (Request Arbitration)
+                </>
               )}
             </button>
           )}
         </div>
       )}
 
-      {/* 2. FREELANCER ACTIONS (Zero-Gas Submission) */}
+      {/* 2. FREELANCER ACTIONS */}
       {isFreelancer && (
         <div className="space-y-4">
           {currentState === EscrowState.Pending && (
-            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center text-zinc-400 text-sm">
-              Awaiting client deposit. Do not begin work until funds are locked in the vault.
+            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center text-slate-600 text-xs font-medium">
+              Awaiting client deposit. Funds must be locked in the contract before commencing work.
             </div>
           )}
 
           {currentState === EscrowState.Funded && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-zinc-400 uppercase font-medium">Proof of Work (URL)</label>
-                <span className="text-[11px] text-emerald-400 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" /> Gasless (Sponsored by Protocol)
+                <label className="text-[11px] text-slate-500 uppercase font-bold">Proof of Work / Deliverable URL</label>
+                <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                  <Sparkles className="w-3 h-3 text-emerald-600" /> Gasless (Sponsored Meta-Tx)
                 </span>
               </div>
               <input
                 type="url"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="https://github.com/..."
+                placeholder="https://github.com/... or https://..."
                 disabled={isAnyLoading}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:border-red-600"
               />
               <button
                 onClick={handleFreelancerSubmit}
                 disabled={isAnyLoading || !inputUrl}
-                className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+                className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
               >
                 {activeAction === 'submitDeliverable' ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Signing Free Submission & Relaying...</span>
+                    <span>Signing Free Meta-Transaction...</span>
                   </>
                 ) : (
-                  'Sign Free Deliverable Submission'
+                  'Sign Deliverable Submission (Gasless)'
                 )}
               </button>
             </div>
           )}
 
           {currentState === EscrowState.Delivered && (
-            <div className="p-4 rounded-lg bg-zinc-950/70 border border-zinc-800 text-center text-zinc-300 text-sm">
-              Deliverable submitted. Awaiting client milestone approval and payout release.
+            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-center text-slate-700 text-xs font-medium">
+              Deliverable verified and recorded. Awaiting client release confirmation.
             </div>
           )}
 
@@ -377,15 +377,18 @@ export function ActionPanel({
                 }
               }}
               disabled={isAnyLoading}
-              className="w-full py-2 px-4 bg-red-950/40 hover:bg-red-900/60 border border-red-800 text-red-300 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-2 px-4 bg-white hover:bg-red-50 border border-red-300 text-red-700 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               {activeAction === 'dispute' ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Raising Dispute...</span>
+                  <span>Submitting Dispute...</span>
                 </>
               ) : (
-                'Raise Dispute (Invoke Arbiter)'
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Raise Dispute (Request Arbitration)
+                </>
               )}
             </button>
           )}
@@ -395,30 +398,30 @@ export function ActionPanel({
       {/* 3. ARBITER ACTIONS */}
       {isArbiter && currentState === EscrowState.Disputed && (
         <div className="space-y-4">
-          <p className="text-xs text-zinc-400">
-            Split the escrow vault between parties. Sum of refund and payout must equal total vault amount.
+          <p className="text-xs text-slate-600">
+            Specify capital split between stakeholders. Sum of client refund and freelancer payout must strictly equal total vault balance.
           </p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-zinc-400">Client Refund ({isEth ? 'ETH' : 'Tokens'})</label>
+              <label className="text-[11px] text-slate-500 uppercase font-bold block mb-1">Client Refund ({isEth ? 'ETH' : 'Tokens'})</label>
               <input
                 type="text"
                 value={refundEth}
                 onChange={(e) => setRefundEth(e.target.value)}
                 placeholder="0.0"
                 disabled={isAnyLoading}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:border-red-600"
               />
             </div>
             <div>
-              <label className="text-xs text-zinc-400">Freelancer Payout ({isEth ? 'ETH' : 'Tokens'})</label>
+              <label className="text-[11px] text-slate-500 uppercase font-bold block mb-1">Freelancer Payout ({isEth ? 'ETH' : 'Tokens'})</label>
               <input
                 type="text"
                 value={payoutEth}
                 onChange={(e) => setPayoutEth(e.target.value)}
                 placeholder="0.0"
                 disabled={isAnyLoading}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:border-red-600"
               />
             </div>
           </div>
@@ -435,23 +438,23 @@ export function ActionPanel({
               }
             }}
             disabled={isAnyLoading || !refundEth || !payoutEth}
-            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg font-semibold text-sm transition flex items-center justify-center gap-2"
+            className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition flex items-center justify-center gap-2 shadow-xs cursor-pointer"
           >
             {activeAction === 'resolve' ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Executing Split...</span>
+                <span>Enforcing Dispute Settlement...</span>
               </>
             ) : (
-              'Enforce Dispute Resolution'
+              'Enforce Arbitrated Resolution'
             )}
           </button>
         </div>
       )}
 
       {currentState === EscrowState.Completed && (
-        <div className="text-center py-2 text-emerald-400 font-medium text-sm">
-          ✓ Agreement finalized. All vault funds have been disbursed.
+        <div className="text-center py-3 text-emerald-700 font-bold text-xs bg-emerald-50 rounded-lg border border-emerald-200">
+          ✓ Agreement finalized. All vault funds disbursed according to smart contract rules.
         </div>
       )}
     </div>

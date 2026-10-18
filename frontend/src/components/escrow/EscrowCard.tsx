@@ -15,18 +15,17 @@ interface EscrowCardProps {
 }
 
 const stateLabels: Record<EscrowState, { label: string; color: string }> = {
-  [EscrowState.Pending]: { label: 'Pending Deposit', color: 'bg-zinc-800 text-zinc-300 border-zinc-700' },
-  [EscrowState.Funded]: { label: 'Funded', color: 'bg-indigo-950 text-indigo-300 border-indigo-800' },
-  [EscrowState.Delivered]: { label: 'Delivered', color: 'bg-amber-950 text-amber-300 border-amber-800' },
-  [EscrowState.Completed]: { label: 'Completed', color: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
-  [EscrowState.Disputed]: { label: 'Disputed', color: 'bg-red-950 text-red-300 border-red-800' },
+  [EscrowState.Pending]: { label: 'Pending Deposit', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+  [EscrowState.Funded]: { label: 'Active Vault', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  [EscrowState.Delivered]: { label: 'In Review', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  [EscrowState.Completed]: { label: 'Settled', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  [EscrowState.Disputed]: { label: 'Disputed', color: 'bg-red-50 text-red-700 border-red-200' },
 };
 
 export function EscrowCard({ escrowAddress, onVisibilityChange }: EscrowCardProps) {
   const { address } = useAccount();
-  const { client, freelancer, arbiter, token, amount, currentState, isLoading } = useEscrowState(escrowAddress);
+  const { client, freelancer, token, amount, currentState, isLoading } = useEscrowState(escrowAddress);
 
-  // Dynamically resolve symbol, decimals, and custom unit formatting
   const { symbol, formatAmount } = useTokenMetadata(token);
 
   const [title, setTitle] = useState(() => getEscrowMetadata(escrowAddress).title || '');
@@ -53,84 +52,81 @@ export function EscrowCard({ escrowAddress, onVisibilityChange }: EscrowCardProp
 
   if (isLoading) {
     return (
-      <div className="bg-zinc-900/60 border border-zinc-800 p-5 rounded-xl animate-pulse">
-        <div className="h-4 bg-zinc-800 rounded w-1/3 mb-4"></div>
-        <div className="h-6 bg-zinc-800 rounded w-1/2 mb-3"></div>
-        <div className="h-4 bg-zinc-800 rounded w-2/3"></div>
+      <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-xs animate-pulse">
+        <div className="h-4 bg-slate-100 rounded w-1/3 mb-4"></div>
+        <div className="h-7 bg-slate-100 rounded w-1/2 mb-3"></div>
+        <div className="h-4 bg-slate-100 rounded w-2/3"></div>
       </div>
     );
   }
 
   const isClient = address?.toLowerCase() === client?.toLowerCase();
   const isFreelancer = address?.toLowerCase() === freelancer?.toLowerCase();
-  const isArbiter = address?.toLowerCase() === arbiter?.toLowerCase();
 
   const roleLabel = isClient
     ? 'Client'
     : isFreelancer
     ? 'Freelancer'
-    : isArbiter
-    ? 'Arbiter'
-    : 'Participant';
+    : 'Observer';
 
   const statusInfo = currentState !== undefined ? stateLabels[currentState] : stateLabels[EscrowState.Pending];
 
   return (
-    <div className={`bg-zinc-900 border ${hidden ? 'border-zinc-800/40 opacity-70' : 'border-zinc-800 hover:border-zinc-700'} transition rounded-xl p-5 flex flex-col justify-between`}>
+    <div className={`bg-white border ${hidden ? 'border-slate-200 opacity-60' : 'border-slate-200 hover:border-slate-300 hover:shadow-md'} transition-all duration-150 rounded-xl p-6 flex flex-col justify-between shadow-xs`}>
       <div>
         {/* Top Badges & Actions */}
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <span className={`text-xs px-2.5 py-0.5 rounded-full border font-medium ${statusInfo.color}`}>
+        <div className="flex items-center justify-between gap-2 mb-4">
+          <span className={`text-[11px] uppercase tracking-wider px-2.5 py-0.5 rounded-full border font-semibold ${statusInfo.color}`}>
             {statusInfo.label}
           </span>
           <div className="flex items-center gap-1.5">
-            <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono">
+            <span className="text-[11px] font-semibold bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full border border-slate-200">
               {roleLabel}
             </span>
             <button
               onClick={handleToggleHide}
               title={hidden ? 'Unhide contract' : 'Archive / Hide contract'}
-              className="p-1 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+              className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
             >
-              {hidden ? <Eye className="w-3.5 h-3.5 text-amber-400" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {hidden ? <Eye className="w-3.5 h-3.5 text-red-600" /> : <EyeOff className="w-3.5 h-3.5" />}
             </button>
           </div>
         </div>
 
         {/* Project Title / Renaming */}
-        <div className="mb-3">
+        <div className="mb-4">
           {!isEditing ? (
             <div className="flex items-center justify-between gap-2 group">
-              <h3 className="text-sm font-semibold text-white truncate" title={title || escrowAddress}>
+              <h3 className="text-base font-bold text-slate-900 tracking-tight truncate" title={title || escrowAddress}>
                 {title || 'Untitled Agreement'}
               </h3>
               <button
                 onClick={() => setIsEditing(true)}
-                className="opacity-0 group-hover:opacity-100 p-0.5 text-zinc-500 hover:text-zinc-300 transition"
+                className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-700 transition"
                 title="Rename agreement"
               >
-                <Pencil className="w-3 h-3" />
+                <Pencil className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-1 my-1">
+            <div className="flex items-center gap-1.5 my-1">
               <input
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 placeholder="Project title..."
-                className="w-full bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-red-600"
                 autoFocus
               />
               <button
                 onClick={handleSaveTitle}
-                className="p-1 text-emerald-400 hover:bg-zinc-800 rounded"
+                className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={handleCancelTitle}
-                className="p-1 text-zinc-400 hover:bg-zinc-800 rounded"
+                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -138,41 +134,43 @@ export function EscrowCard({ escrowAddress, onVisibilityChange }: EscrowCardProp
           )}
         </div>
 
-        {/* Dynamic Vault Value & Asset Symbol */}
-        <div className="mb-4">
-          <span className="text-xs text-zinc-500 font-medium">Vault Value</span>
-          <p className="text-xl font-bold text-white mt-0.5">
-            {formatAmount(amount)} {symbol}
+        {/* Vault Value */}
+        <div className="mb-5 pb-4 border-b border-slate-100">
+          <span className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold block">Escrow Valuation</span>
+          <p className="text-2xl font-bold text-slate-900 tracking-tight mt-0.5">
+            {formatAmount(amount)} <span className="text-sm font-semibold text-slate-500">{symbol}</span>
           </p>
         </div>
 
-        <div className="space-y-1 text-xs font-mono text-zinc-400 mb-4 bg-zinc-950 p-2.5 rounded-lg border border-zinc-800/60">
+        {/* Contract Identifiers */}
+        <div className="space-y-1.5 text-xs font-mono text-slate-600 mb-5 bg-slate-50 p-3 rounded-lg border border-slate-200">
           <div className="truncate">
-            <span className="text-zinc-500">Contract: </span>
+            <span className="text-slate-400 font-sans font-medium text-[11px]">Vault: </span>
             {escrowAddress}
           </div>
           <div className="truncate">
-            <span className="text-zinc-500">Freelancer: </span>
+            <span className="text-slate-400 font-sans font-medium text-[11px]">Beneficiary: </span>
             {freelancer || '...'}
           </div>
         </div>
       </div>
 
-      <div className="flex items-center justify-between pt-3 border-t border-zinc-800">
+      {/* Footer Actions */}
+      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
         <a
           href={`https://sepolia.etherscan.io/address/${escrowAddress}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition"
+          className="text-xs font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 transition"
         >
-          Etherscan <ExternalLink className="w-3 h-3" />
+          Audit Ledger <ExternalLink className="w-3 h-3" />
         </a>
 
         <Link
           href={`/escrow/${escrowAddress}`}
-          className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition"
+          className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 transition"
         >
-          Manage <ArrowRight className="w-3.5 h-3.5" />
+          Manage Vault <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     </div>

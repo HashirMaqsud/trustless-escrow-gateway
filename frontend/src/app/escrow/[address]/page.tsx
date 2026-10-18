@@ -9,7 +9,7 @@ import { useEtherscanHistory } from '@/hooks/useEtherscanHistory';
 import { StateTimeline } from '@/components/escrow/StateTimeline';
 import { ActionPanel } from '@/components/escrow/ActionPanel';
 import { getEscrowMetadata, setEscrowMetadata } from '@/utils/escrowMetadata';
-import { Pencil, Check, X, FileText, History, ExternalLink } from 'lucide-react';
+import { Pencil, Check, X, FileText, History, ExternalLink, ArrowLeft, Wallet, Shield } from 'lucide-react';
 
 interface EscrowPageProps {
   params: Promise<{ address: string }>;
@@ -49,9 +49,7 @@ export default function EscrowDetailPage({ params }: EscrowPageProps) {
     refetch,
   } = useEscrowState(escrowAddress);
 
-  // Dynamically resolve symbol, decimals, and custom unit formatting for the escrow asset
   const { symbol, formatAmount } = useTokenMetadata(token);
-
   const { history, isLoading: isHistoryLoading } = useEtherscanHistory(escrowAddress);
 
   useEffect(() => {
@@ -81,197 +79,178 @@ export default function EscrowDetailPage({ params }: EscrowPageProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh]">
-        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-zinc-400 text-sm">Querying escrow state machine from Sepolia...</p>
+      <div className="flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="w-8 h-8 border-3 border-red-600 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-slate-500 text-xs font-medium">Synchronizing vault ledger with Sepolia...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      {/* Top Navigation & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-6">
-        <div className="w-full">
-          <div className="flex items-center gap-2 mb-2">
-            <Link
-              href="/dashboard"
-              className="text-xs text-zinc-400 hover:text-white transition flex items-center gap-1 font-medium"
-            >
-              ← Back to Dashboard
-            </Link>
-          </div>
+    <div className="max-w-7xl mx-auto py-2">
+      {/* Top Header */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div>
+          <Link
+            href="/dashboard"
+            className="text-[11px] text-slate-500 hover:text-slate-900 transition inline-flex items-center gap-1 font-semibold mb-1"
+          >
+            <ArrowLeft className="w-3 h-3" /> Return to Portfolio
+          </Link>
 
           {!isEditing ? (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-2xl font-bold text-white tracking-tight">
-                  {title || 'Escrow Agreement'}
-                </h1>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="p-1 text-zinc-500 hover:text-zinc-300 rounded transition"
-                  title="Edit title and description"
-                >
-                  <Pencil className="w-4 h-4" />
-                </button>
-              </div>
-              <span className="text-xs font-mono text-zinc-500 break-all block">{escrowAddress}</span>
-              {description && (
-                <div className="mt-2.5 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300 flex items-start gap-2">
-                  <FileText className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                  <p className="leading-relaxed">{description}</p>
-                </div>
-              )}
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+                {title || 'Escrow Settlement Vault'}
+              </h1>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="p-1 text-slate-400 hover:text-slate-700 transition"
+                title="Edit title and terms"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs font-mono text-slate-400">({escrowAddress.slice(0, 8)}...{escrowAddress.slice(-6)})</span>
             </div>
           ) : (
-            <div className="space-y-2 p-3 bg-zinc-900/90 rounded-lg border border-zinc-700 max-w-xl">
-              <div>
-                <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1">
-                  Project Title
-                </label>
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="e.g. Next.js DApp Frontend & Smart Contracts"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] uppercase tracking-wider text-zinc-400 font-semibold block mb-1">
-                  Milestone Scope / Description
-                </label>
-                <textarea
-                  rows={2}
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  placeholder="Milestone description..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  onClick={handleSaveMetadata}
-                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <Check className="w-3.5 h-3.5" /> Save Changes
-                </button>
-                <button
-                  onClick={handleCancelEdit}
-                  className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 rounded text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <X className="w-3.5 h-3.5" /> Cancel
-                </button>
-              </div>
+            <div className="flex items-center gap-2 my-1">
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Agreement Title..."
+                className="bg-white border border-slate-300 rounded px-2.5 py-1 text-xs text-slate-900 focus:outline-none focus:border-red-600"
+              />
+              <button
+                onClick={handleSaveMetadata}
+                className="px-2 py-1 bg-red-600 text-white rounded text-xs font-bold"
+              >
+                Save
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                className="px-2 py-1 bg-slate-200 text-slate-600 rounded text-xs font-semibold"
+              >
+                Cancel
+              </button>
             </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <a
-            href={`https://sepolia.etherscan.io/address/${escrowAddress}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 rounded-lg text-xs font-medium transition"
-          >
-            Sepolia Etherscan ↗
-          </a>
-        </div>
+        <a
+          href={`https://sepolia.etherscan.io/address/${escrowAddress}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-lg text-xs font-semibold shadow-xs transition flex items-center gap-1.5"
+        >
+          Sepolia Ledger <ExternalLink className="w-3 h-3 text-slate-400" />
+        </a>
       </div>
 
-      {/* State Tracker */}
+      {/* 1. Compact Milestone State Sequence */}
       <StateTimeline currentState={currentState} />
 
-      {/* Contract Details Card */}
-      <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-6 mb-8">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-4">
-          Vault Specification
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span className="text-xs text-zinc-500 font-medium">Locked Balance</span>
-            <p className="text-lg font-bold text-white mt-1">
-              {formatAmount(amount)} {symbol}
+      {/* 2. Main 2-Column Split Dashboard */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        
+        {/* Left Column (5 Cols): Stakeholders, Locked Capital & Description */}
+        <div className="lg:col-span-5 space-y-4">
+          
+          {/* Capital Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+              Locked Capital Balance
+            </span>
+            <p className="text-3xl font-extrabold text-slate-900 tracking-tight mt-1">
+              {formatAmount(amount)} <span className="text-sm font-bold text-red-600">{symbol}</span>
             </p>
+            {description && (
+              <p className="text-xs text-slate-500 mt-2.5 pt-2.5 border-t border-slate-100 leading-relaxed">
+                {description}
+              </p>
+            )}
           </div>
 
-          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span className="text-xs text-zinc-500 font-medium">Client</span>
-            <p className="text-xs font-mono text-zinc-300 mt-1 truncate" title={client}>
-              {client || 'Loading...'}
-            </p>
+          {/* Stakeholders Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block">
+              Designated Stakeholders
+            </span>
+
+            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/80">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Client (Depositor)</span>
+              <p className="text-xs font-mono text-slate-800 truncate mt-0.5" title={client}>{client}</p>
+            </div>
+
+            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/80">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Beneficiary (Freelancer)</span>
+              <p className="text-xs font-mono text-slate-800 truncate mt-0.5" title={freelancer}>{freelancer}</p>
+            </div>
+
+            <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200/80">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Arbiter (Mediator)</span>
+              <p className="text-xs font-mono text-slate-800 truncate mt-0.5" title={arbiter}>{arbiter}</p>
+            </div>
           </div>
 
-          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span className="text-xs text-zinc-500 font-medium">Freelancer</span>
-            <p className="text-xs font-mono text-zinc-300 mt-1 truncate" title={freelancer}>
-              {freelancer || 'Loading...'}
-            </p>
-          </div>
-
-          <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span className="text-xs text-zinc-500 font-medium">Arbiter</span>
-            <p className="text-xs font-mono text-zinc-300 mt-1 truncate" title={arbiter}>
-              {arbiter || 'Loading...'}
-            </p>
-          </div>
         </div>
-      </div>
 
-      {/* Action Controls */}
-      <ActionPanel
-        escrowAddress={escrowAddress}
-        client={client}
-        freelancer={freelancer}
-        arbiter={arbiter}
-        token={token}
-        amount={amount}
-        currentState={currentState}
-        deliverableUrl={deliverableUrl}
-        onActionSuccess={() => refetch()}
-      />
+        {/* Right Column (7 Cols): Settlement Panel & Compact Activity Trail */}
+        <div className="lg:col-span-7 space-y-4">
+          
+          {/* Execution Panel */}
+          <ActionPanel
+            escrowAddress={escrowAddress}
+            client={client}
+            freelancer={freelancer}
+            arbiter={arbiter}
+            token={token}
+            amount={amount}
+            currentState={currentState}
+            deliverableUrl={deliverableUrl}
+            onActionSuccess={() => refetch()}
+          />
 
-      {/* Etherscan On-Chain Audit History */}
-      <div className="mt-8 bg-zinc-900/60 border border-zinc-800 rounded-xl p-6">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-4 flex items-center gap-2">
-          <History className="w-4 h-4 text-indigo-400" />
-          On-Chain Activity Trail (Etherscan Verified)
-        </h3>
+          {/* Compact Activity Trail with Internal Scroll */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 mb-2.5 flex items-center gap-1.5">
+              <History className="w-3.5 h-3.5 text-red-600" />
+              On-Chain Activity Trail
+            </h3>
 
-        {isHistoryLoading ? (
-          <p className="text-xs text-zinc-500">Querying transaction history from Sepolia Etherscan...</p>
-        ) : history.length === 0 ? (
-          <p className="text-xs text-zinc-500">No public transactions recorded on Etherscan for this contract yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {history.map((tx) => (
-              <div
-                key={tx.hash}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-zinc-950 rounded-lg border border-zinc-800/70 text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-zinc-400 truncate max-w-[200px] sm:max-w-xs">
-                    {tx.hash}
-                  </span>
-                  <a
-                    href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-400 hover:text-indigo-300 inline-flex items-center gap-0.5"
+            {isHistoryLoading ? (
+              <p className="text-xs text-slate-400">Querying ledger events...</p>
+            ) : history.length === 0 ? (
+              <p className="text-xs text-slate-400">No public transactions recorded yet.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {history.map((tx) => (
+                  <div
+                    key={tx.hash}
+                    className="flex items-center justify-between p-2 bg-slate-50 rounded-md border border-slate-200 text-xs"
                   >
-                    View <ExternalLink className="w-3 h-3" />
-                  </a>
-                </div>
-                <div className="text-zinc-500 font-mono mt-1 sm:mt-0">
-                  {new Date(tx.timestamp * 1000).toLocaleString()}
-                </div>
+                    <div className="flex items-center gap-1.5 truncate max-w-[240px]">
+                      <span className="font-mono text-slate-700 truncate">{tx.hash}</span>
+                      <a
+                        href={`https://sepolia.etherscan.io/tx/${tx.hash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-600 hover:text-red-700 font-semibold shrink-0"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                      {new Date(tx.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
+
+        </div>
+
       </div>
     </div>
   );
