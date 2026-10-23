@@ -223,4 +223,14 @@ contract EscrowFactoryUnitTest is Test {
         vm.expectRevert("Fee bps exceeds maximum");
         new EscrowFactory(feeRecipient, 1001, RELAYER_FEE_PER_TX);
     }
+
+    function test_RevertIf_SetFeeConfig_ZeroAddressFeeRecipient() public {
+        vm.expectRevert("Zero address fee recipient");
+        factory.setFeeConfig(address(0), 200, 0.0002 ether);
+    }
+
+    function test_RevertIf_SetFeeConfig_FeeBpsExceedsMaximum() public {
+        vm.expectRevert("Fee bps exceeds maximum");
+        factory.setFeeConfig(feeRecipient, 1001, 0.0002 ether);
+    }
 }

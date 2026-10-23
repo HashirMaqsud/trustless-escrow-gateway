@@ -1,0 +1,371 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - test/integration/EscrowIntegration.t.sol</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory test/integration">test/integration</a> - EscrowIntegration.t.sol<span style="font-size: 80%;"> (source / <a href="EscrowIntegration.t.sol.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">4</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-24 00:11:06</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">2</td>
+          </tr>
+                  <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: MIT</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.24;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {Test} from &quot;forge-std/Test.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import {EscrowFactory} from &quot;../../src/EscrowFactory.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : import {Escrow} from &quot;../../src/Escrow.sol&quot;;</span>
+<span id="L7"><span class="lineNum">       7</span>              : import {ERC20} from &quot;@openzeppelin/contracts/token/ERC20/ERC20.sol&quot;;</span>
+<span id="L8"><span class="lineNum">       8</span>              : </span>
+<span id="L9"><span class="lineNum">       9</span>              : // Mock ERC20 Token for integration testing</span>
+<span id="L10"><span class="lineNum">      10</span>              : contract IntegrationMockERC20 is ERC20 {</span>
+<span id="L11"><span class="lineNum">      11</span> <span class="tlaGNC">           5 :     constructor() ERC20(&quot;ProjectToken&quot;, &quot;PTK&quot;) {</span></span>
+<span id="L12"><span class="lineNum">      12</span> <span class="tlaGNC">           5 :         _mint(msg.sender, 10000 ether);</span></span>
+<span id="L13"><span class="lineNum">      13</span>              :     }</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC">          10 :     function mint(address to, uint256 amount) external {</span></span>
+<span id="L16"><span class="lineNum">      16</span> <span class="tlaGNC">          10 :         _mint(to, amount);</span></span>
+<span id="L17"><span class="lineNum">      17</span>              :     }</span>
+<span id="L18"><span class="lineNum">      18</span>              : }</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              : contract EscrowIntegrationTest is Test {</span>
+<span id="L21"><span class="lineNum">      21</span>              :     EscrowFactory public factory;</span>
+<span id="L22"><span class="lineNum">      22</span>              :     IntegrationMockERC20 public token;</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              :     // Parties</span>
+<span id="L25"><span class="lineNum">      25</span>              :     address public clientA = makeAddr(&quot;clientA&quot;);</span>
+<span id="L26"><span class="lineNum">      26</span>              :     address public freelancerA = makeAddr(&quot;freelancerA&quot;);</span>
+<span id="L27"><span class="lineNum">      27</span>              :     address public clientB = makeAddr(&quot;clientB&quot;);</span>
+<span id="L28"><span class="lineNum">      28</span>              :     address public freelancerB = makeAddr(&quot;freelancerB&quot;);</span>
+<span id="L29"><span class="lineNum">      29</span>              :     address public arbiter = makeAddr(&quot;arbiter&quot;);</span>
+<span id="L30"><span class="lineNum">      30</span>              :     address public feeRecipient = makeAddr(&quot;feeRecipient&quot;);</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              :     uint256 public constant ETH_PAYMENT = 2 ether;</span>
+<span id="L33"><span class="lineNum">      33</span>              :     uint256 public constant TOKEN_PAYMENT = 500 ether;</span>
+<span id="L34"><span class="lineNum">      34</span>              :     uint256 public constant FEE_BPS = 100; // 1%</span>
+<span id="L35"><span class="lineNum">      35</span>              :     uint256 public constant RELAYER_FEE_PER_TX = 0.0001 ether;</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span>              :     string public constant IPFS_CID = &quot;ipfs://bafybeicg2oxqozr75w3xjoxj4zsvygl4q752k4z626j5z4y25n7e4q4n4y&quot;;</span>
+<span id="L38"><span class="lineNum">      38</span>              :     string public constant NOTES = &quot;Integration test submission notes&quot;;</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              :     function setUp() public {</span>
+<span id="L41"><span class="lineNum">      41</span>              :         factory = new EscrowFactory(feeRecipient, FEE_BPS, RELAYER_FEE_PER_TX);</span>
+<span id="L42"><span class="lineNum">      42</span>              :         token = new IntegrationMockERC20();</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span>              :         // Fund accounts</span>
+<span id="L45"><span class="lineNum">      45</span>              :         vm.deal(clientA, 10 ether);</span>
+<span id="L46"><span class="lineNum">      46</span>              :         vm.deal(clientB, 10 ether);</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :         token.mint(clientA, 2000 ether);</span>
+<span id="L49"><span class="lineNum">      49</span>              :         token.mint(clientB, 2000 ether);</span>
+<span id="L50"><span class="lineNum">      50</span>              :     }</span>
+<span id="L51"><span class="lineNum">      51</span>              : </span>
+<span id="L52"><span class="lineNum">      52</span>              :     function test_Integration_NativeEth_FullHappyPath() public {</span>
+<span id="L53"><span class="lineNum">      53</span>              :         uint256[] memory amounts = new uint256[](1);</span>
+<span id="L54"><span class="lineNum">      54</span>              :         amounts[0] = ETH_PAYMENT;</span>
+<span id="L55"><span class="lineNum">      55</span>              :         string[] memory descriptions = new string[](1);</span>
+<span id="L56"><span class="lineNum">      56</span>              :         descriptions[0] = &quot;Full Project Scope&quot;;</span>
+<span id="L57"><span class="lineNum">      57</span>              : </span>
+<span id="L58"><span class="lineNum">      58</span>              :         // Step 1: Client A deploys Escrow via Factory</span>
+<span id="L59"><span class="lineNum">      59</span>              :         vm.prank(clientA);</span>
+<span id="L60"><span class="lineNum">      60</span>              :         address escrowAddr = factory.createEscrow(</span>
+<span id="L61"><span class="lineNum">      61</span>              :             freelancerA,</span>
+<span id="L62"><span class="lineNum">      62</span>              :             arbiter,</span>
+<span id="L63"><span class="lineNum">      63</span>              :             address(0),</span>
+<span id="L64"><span class="lineNum">      64</span>              :             amounts,</span>
+<span id="L65"><span class="lineNum">      65</span>              :             descriptions</span>
+<span id="L66"><span class="lineNum">      66</span>              :         );</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span>              :         Escrow escrow = Escrow(escrowAddr);</span>
+<span id="L69"><span class="lineNum">      69</span>              :         uint256 fee = (ETH_PAYMENT * FEE_BPS) / 10000;</span>
+<span id="L70"><span class="lineNum">      70</span>              :         uint256 relayerPool = escrow.TOTAL_RELAYER_POOL();</span>
+<span id="L71"><span class="lineNum">      71</span>              :         uint256 totalRequired = ETH_PAYMENT + fee + relayerPool;</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              :         // Step 2: Client A funds the deployed Escrow directly with deposit + fee + relayerPool</span>
+<span id="L74"><span class="lineNum">      74</span>              :         vm.prank(clientA);</span>
+<span id="L75"><span class="lineNum">      75</span>              :         escrow.fund{value: totalRequired}();</span>
+<span id="L76"><span class="lineNum">      76</span>              :         assertEq(address(escrow).balance, ETH_PAYMENT + relayerPool);</span>
+<span id="L77"><span class="lineNum">      77</span>              :         assertEq(feeRecipient.balance, fee);</span>
+<span id="L78"><span class="lineNum">      78</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              :         // Step 3: Freelancer A submits work</span>
+<span id="L81"><span class="lineNum">      81</span>              :         string memory proofOfWork = &quot;https://github.com/clientA/final-project-v1&quot;;</span>
+<span id="L82"><span class="lineNum">      82</span>              :         vm.prank(freelancerA);</span>
+<span id="L83"><span class="lineNum">      83</span>              :         escrow.submitDeliverable(proofOfWork, IPFS_CID, NOTES, 0);</span>
+<span id="L84"><span class="lineNum">      84</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Delivered));</span>
+<span id="L85"><span class="lineNum">      85</span>              :         assertEq(escrow.getLatestSubmission().deliverableUrl, proofOfWork);</span>
+<span id="L86"><span class="lineNum">      86</span>              : </span>
+<span id="L87"><span class="lineNum">      87</span>              :         // Step 4: Client A approves and releases funds</span>
+<span id="L88"><span class="lineNum">      88</span>              :         uint256 freelancerInitialBalance = freelancerA.balance;</span>
+<span id="L89"><span class="lineNum">      89</span>              :         uint256 clientInitialBalance = clientA.balance;</span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span>              :         vm.prank(clientA);</span>
+<span id="L92"><span class="lineNum">      92</span>              :         escrow.releaseFunds();</span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span>              :         // Step 5: Final settlement checks</span>
+<span id="L95"><span class="lineNum">      95</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Completed));</span>
+<span id="L96"><span class="lineNum">      96</span>              :         assertEq(freelancerA.balance, freelancerInitialBalance + ETH_PAYMENT);</span>
+<span id="L97"><span class="lineNum">      97</span>              :         // Unused dynamic relayer pool returned to Client A</span>
+<span id="L98"><span class="lineNum">      98</span>              :         assertEq(clientA.balance, clientInitialBalance + relayerPool);</span>
+<span id="L99"><span class="lineNum">      99</span>              :         assertEq(address(escrow).balance, 0);</span>
+<span id="L100"><span class="lineNum">     100</span>              : </span>
+<span id="L101"><span class="lineNum">     101</span>              :         (,, bool approved) = escrow.milestones(0);</span>
+<span id="L102"><span class="lineNum">     102</span>              :         assertTrue(approved);</span>
+<span id="L103"><span class="lineNum">     103</span>              :     }</span>
+<span id="L104"><span class="lineNum">     104</span>              : </span>
+<span id="L105"><span class="lineNum">     105</span>              :     function test_Integration_Token_DisputeAndSplitWorkflow() public {</span>
+<span id="L106"><span class="lineNum">     106</span>              :         uint256[] memory amounts = new uint256[](1);</span>
+<span id="L107"><span class="lineNum">     107</span>              :         amounts[0] = TOKEN_PAYMENT;</span>
+<span id="L108"><span class="lineNum">     108</span>              :         string[] memory descriptions = new string[](1);</span>
+<span id="L109"><span class="lineNum">     109</span>              :         descriptions[0] = &quot;Design Sprint&quot;;</span>
+<span id="L110"><span class="lineNum">     110</span>              : </span>
+<span id="L111"><span class="lineNum">     111</span>              :         // Step 1: Client B deploys Token-based Escrow via Factory</span>
+<span id="L112"><span class="lineNum">     112</span>              :         vm.prank(clientB);</span>
+<span id="L113"><span class="lineNum">     113</span>              :         address escrowAddr = factory.createEscrow(</span>
+<span id="L114"><span class="lineNum">     114</span>              :             freelancerB,</span>
+<span id="L115"><span class="lineNum">     115</span>              :             arbiter,</span>
+<span id="L116"><span class="lineNum">     116</span>              :             address(token),</span>
+<span id="L117"><span class="lineNum">     117</span>              :             amounts,</span>
+<span id="L118"><span class="lineNum">     118</span>              :             descriptions</span>
+<span id="L119"><span class="lineNum">     119</span>              :         );</span>
+<span id="L120"><span class="lineNum">     120</span>              : </span>
+<span id="L121"><span class="lineNum">     121</span>              :         Escrow escrow = Escrow(escrowAddr);</span>
+<span id="L122"><span class="lineNum">     122</span>              :         uint256 fee = (TOKEN_PAYMENT * FEE_BPS) / 10000;</span>
+<span id="L123"><span class="lineNum">     123</span>              :         uint256 relayerPool = escrow.TOTAL_RELAYER_POOL();</span>
+<span id="L124"><span class="lineNum">     124</span>              :         uint256 totalRequired = TOKEN_PAYMENT + fee + relayerPool;</span>
+<span id="L125"><span class="lineNum">     125</span>              : </span>
+<span id="L126"><span class="lineNum">     126</span>              :         // Step 2: Client B approves token transfer and funds Escrow</span>
+<span id="L127"><span class="lineNum">     127</span>              :         vm.startPrank(clientB);</span>
+<span id="L128"><span class="lineNum">     128</span>              :         token.approve(escrowAddr, totalRequired);</span>
+<span id="L129"><span class="lineNum">     129</span>              :         escrow.fund();</span>
+<span id="L130"><span class="lineNum">     130</span>              :         vm.stopPrank();</span>
+<span id="L131"><span class="lineNum">     131</span>              : </span>
+<span id="L132"><span class="lineNum">     132</span>              :         assertEq(token.balanceOf(escrowAddr), TOKEN_PAYMENT + relayerPool);</span>
+<span id="L133"><span class="lineNum">     133</span>              :         assertEq(token.balanceOf(feeRecipient), fee);</span>
+<span id="L134"><span class="lineNum">     134</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Funded));</span>
+<span id="L135"><span class="lineNum">     135</span>              : </span>
+<span id="L136"><span class="lineNum">     136</span>              :         // Step 3: Freelancer B submits work</span>
+<span id="L137"><span class="lineNum">     137</span>              :         vm.prank(freelancerB);</span>
+<span id="L138"><span class="lineNum">     138</span>              :         escrow.submitDeliverable(&quot;https://figma.com/design-submission&quot;, IPFS_CID, NOTES, 0);</span>
+<span id="L139"><span class="lineNum">     139</span>              : </span>
+<span id="L140"><span class="lineNum">     140</span>              :         // Step 4: Client B raises dispute</span>
+<span id="L141"><span class="lineNum">     141</span>              :         vm.prank(clientB);</span>
+<span id="L142"><span class="lineNum">     142</span>              :         escrow.raiseDispute();</span>
+<span id="L143"><span class="lineNum">     143</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Disputed));</span>
+<span id="L144"><span class="lineNum">     144</span>              : </span>
+<span id="L145"><span class="lineNum">     145</span>              :         // Step 5: Arbiter mediates and splits tokens (300 to client refund, 200 to freelancer payout)</span>
+<span id="L146"><span class="lineNum">     146</span>              :         uint256 refundAmount = 300 ether;</span>
+<span id="L147"><span class="lineNum">     147</span>              :         uint256 payoutAmount = 200 ether;</span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span>              :         uint256 clientInitialTokenBalance = token.balanceOf(clientB);</span>
+<span id="L150"><span class="lineNum">     150</span>              :         uint256 freelancerInitialTokenBalance = token.balanceOf(freelancerB);</span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span>              :         vm.prank(arbiter);</span>
+<span id="L153"><span class="lineNum">     153</span>              :         escrow.resolveDispute(refundAmount, payoutAmount);</span>
+<span id="L154"><span class="lineNum">     154</span>              : </span>
+<span id="L155"><span class="lineNum">     155</span>              :         // Step 6: Verify final token accounting (Client gets refund + unused relayer pool)</span>
+<span id="L156"><span class="lineNum">     156</span>              :         assertEq(uint256(escrow.currentState()), uint256(Escrow.State.Completed));</span>
+<span id="L157"><span class="lineNum">     157</span>              :         assertEq(token.balanceOf(clientB), clientInitialTokenBalance + refundAmount + relayerPool);</span>
+<span id="L158"><span class="lineNum">     158</span>              :         assertEq(token.balanceOf(freelancerB), freelancerInitialTokenBalance + payoutAmount);</span>
+<span id="L159"><span class="lineNum">     159</span>              :         assertEq(token.balanceOf(escrowAddr), 0);</span>
+<span id="L160"><span class="lineNum">     160</span>              :     }</span>
+<span id="L161"><span class="lineNum">     161</span>              : </span>
+<span id="L162"><span class="lineNum">     162</span>              :     function test_Integration_FactoryMultiPartyIsolation() public {</span>
+<span id="L163"><span class="lineNum">     163</span>              :         uint256[] memory amounts1 = new uint256[](1);</span>
+<span id="L164"><span class="lineNum">     164</span>              :         amounts1[0] = 1 ether;</span>
+<span id="L165"><span class="lineNum">     165</span>              :         string[] memory desc1 = new string[](1);</span>
+<span id="L166"><span class="lineNum">     166</span>              :         desc1[0] = &quot;M1&quot;;</span>
+<span id="L167"><span class="lineNum">     167</span>              : </span>
+<span id="L168"><span class="lineNum">     168</span>              :         uint256[] memory amounts2 = new uint256[](1);</span>
+<span id="L169"><span class="lineNum">     169</span>              :         amounts2[0] = 2 ether;</span>
+<span id="L170"><span class="lineNum">     170</span>              :         string[] memory desc2 = new string[](1);</span>
+<span id="L171"><span class="lineNum">     171</span>              :         desc2[0] = &quot;M2&quot;;</span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span>              :         uint256[] memory amounts3 = new uint256[](1);</span>
+<span id="L174"><span class="lineNum">     174</span>              :         amounts3[0] = 3 ether;</span>
+<span id="L175"><span class="lineNum">     175</span>              :         string[] memory desc3 = new string[](1);</span>
+<span id="L176"><span class="lineNum">     176</span>              :         desc3[0] = &quot;M3&quot;;</span>
+<span id="L177"><span class="lineNum">     177</span>              : </span>
+<span id="L178"><span class="lineNum">     178</span>              :         // Deploy Escrow 1 for Client A &amp; Freelancer A</span>
+<span id="L179"><span class="lineNum">     179</span>              :         vm.prank(clientA);</span>
+<span id="L180"><span class="lineNum">     180</span>              :         address escrow1 = factory.createEscrow(freelancerA, arbiter, address(0), amounts1, desc1);</span>
+<span id="L181"><span class="lineNum">     181</span>              : </span>
+<span id="L182"><span class="lineNum">     182</span>              :         // Deploy Escrow 2 for Client B &amp; Freelancer B</span>
+<span id="L183"><span class="lineNum">     183</span>              :         vm.prank(clientB);</span>
+<span id="L184"><span class="lineNum">     184</span>              :         address escrow2 = factory.createEscrow(freelancerB, arbiter, address(0), amounts2, desc2);</span>
+<span id="L185"><span class="lineNum">     185</span>              : </span>
+<span id="L186"><span class="lineNum">     186</span>              :         // Deploy Escrow 3 for Client A &amp; Freelancer B</span>
+<span id="L187"><span class="lineNum">     187</span>              :         vm.prank(clientA);</span>
+<span id="L188"><span class="lineNum">     188</span>              :         address escrow3 = factory.createEscrow(freelancerB, arbiter, address(0), amounts3, desc3);</span>
+<span id="L189"><span class="lineNum">     189</span>              : </span>
+<span id="L190"><span class="lineNum">     190</span>              :         // Verify total registry count</span>
+<span id="L191"><span class="lineNum">     191</span>              :         assertEq(factory.getAllEscrows().length, 3);</span>
+<span id="L192"><span class="lineNum">     192</span>              : </span>
+<span id="L193"><span class="lineNum">     193</span>              :         // Verify Client A has exactly escrow 1 and 3</span>
+<span id="L194"><span class="lineNum">     194</span>              :         address[] memory clientAEscrows = factory.getUserEscrows(clientA);</span>
+<span id="L195"><span class="lineNum">     195</span>              :         assertEq(clientAEscrows.length, 2);</span>
+<span id="L196"><span class="lineNum">     196</span>              :         assertEq(clientAEscrows[0], escrow1);</span>
+<span id="L197"><span class="lineNum">     197</span>              :         assertEq(clientAEscrows[1], escrow3);</span>
+<span id="L198"><span class="lineNum">     198</span>              : </span>
+<span id="L199"><span class="lineNum">     199</span>              :         // Verify Client B has only escrow 2</span>
+<span id="L200"><span class="lineNum">     200</span>              :         address[] memory clientBEscrows = factory.getUserEscrows(clientB);</span>
+<span id="L201"><span class="lineNum">     201</span>              :         assertEq(clientBEscrows.length, 1);</span>
+<span id="L202"><span class="lineNum">     202</span>              :         assertEq(clientBEscrows[0], escrow2);</span>
+<span id="L203"><span class="lineNum">     203</span>              : </span>
+<span id="L204"><span class="lineNum">     204</span>              :         // Verify Freelancer B is mapped to escrow 2 and 3</span>
+<span id="L205"><span class="lineNum">     205</span>              :         address[] memory freelancerBEscrows = factory.getUserEscrows(freelancerB);</span>
+<span id="L206"><span class="lineNum">     206</span>              :         assertEq(freelancerBEscrows.length, 2);</span>
+<span id="L207"><span class="lineNum">     207</span>              :         assertEq(freelancerBEscrows[0], escrow2);</span>
+<span id="L208"><span class="lineNum">     208</span>              :         assertEq(freelancerBEscrows[1], escrow3);</span>
+<span id="L209"><span class="lineNum">     209</span>              : </span>
+<span id="L210"><span class="lineNum">     210</span>              :         // Verify Arbiter is mapped to all 3 escrows</span>
+<span id="L211"><span class="lineNum">     211</span>              :         address[] memory arbiterEscrows = factory.getUserEscrows(arbiter);</span>
+<span id="L212"><span class="lineNum">     212</span>              :         assertEq(arbiterEscrows.length, 3);</span>
+<span id="L213"><span class="lineNum">     213</span>              :     }</span>
+<span id="L214"><span class="lineNum">     214</span>              : </span>
+<span id="L215"><span class="lineNum">     215</span>              :     function test_Integration_ConcurrentEscrows_IndependentLifecycles() public {</span>
+<span id="L216"><span class="lineNum">     216</span>              :         uint256[] memory amounts1 = new uint256[](1);</span>
+<span id="L217"><span class="lineNum">     217</span>              :         amounts1[0] = 1 ether;</span>
+<span id="L218"><span class="lineNum">     218</span>              :         string[] memory desc1 = new string[](1);</span>
+<span id="L219"><span class="lineNum">     219</span>              :         desc1[0] = &quot;Scope 1&quot;;</span>
+<span id="L220"><span class="lineNum">     220</span>              : </span>
+<span id="L221"><span class="lineNum">     221</span>              :         uint256[] memory amounts2 = new uint256[](1);</span>
+<span id="L222"><span class="lineNum">     222</span>              :         amounts2[0] = 100 ether;</span>
+<span id="L223"><span class="lineNum">     223</span>              :         string[] memory desc2 = new string[](1);</span>
+<span id="L224"><span class="lineNum">     224</span>              :         desc2[0] = &quot;Scope 2&quot;;</span>
+<span id="L225"><span class="lineNum">     225</span>              : </span>
+<span id="L226"><span class="lineNum">     226</span>              :         // Client A deploys Escrow 1 (ETH)</span>
+<span id="L227"><span class="lineNum">     227</span>              :         vm.prank(clientA);</span>
+<span id="L228"><span class="lineNum">     228</span>              :         address escrow1Addr = factory.createEscrow(freelancerA, arbiter, address(0), amounts1, desc1);</span>
+<span id="L229"><span class="lineNum">     229</span>              :         Escrow escrow1 = Escrow(escrow1Addr);</span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              :         // Client B deploys Escrow 2 (Tokens)</span>
+<span id="L232"><span class="lineNum">     232</span>              :         vm.prank(clientB);</span>
+<span id="L233"><span class="lineNum">     233</span>              :         address escrow2Addr = factory.createEscrow(freelancerB, arbiter, address(token), amounts2, desc2);</span>
+<span id="L234"><span class="lineNum">     234</span>              :         Escrow escrow2 = Escrow(escrow2Addr);</span>
+<span id="L235"><span class="lineNum">     235</span>              : </span>
+<span id="L236"><span class="lineNum">     236</span>              :         uint256 fee1 = (1 ether * FEE_BPS) / 10000;</span>
+<span id="L237"><span class="lineNum">     237</span>              :         uint256 fee2 = (100 ether * FEE_BPS) / 10000;</span>
+<span id="L238"><span class="lineNum">     238</span>              :         uint256 pool1 = escrow1.TOTAL_RELAYER_POOL();</span>
+<span id="L239"><span class="lineNum">     239</span>              :         uint256 pool2 = escrow2.TOTAL_RELAYER_POOL();</span>
+<span id="L240"><span class="lineNum">     240</span>              : </span>
+<span id="L241"><span class="lineNum">     241</span>              :         // Both fund concurrently</span>
+<span id="L242"><span class="lineNum">     242</span>              :         vm.prank(clientA);</span>
+<span id="L243"><span class="lineNum">     243</span>              :         escrow1.fund{value: 1 ether + fee1 + pool1}();</span>
+<span id="L244"><span class="lineNum">     244</span>              : </span>
+<span id="L245"><span class="lineNum">     245</span>              :         vm.startPrank(clientB);</span>
+<span id="L246"><span class="lineNum">     246</span>              :         token.approve(escrow2Addr, 100 ether + fee2 + pool2);</span>
+<span id="L247"><span class="lineNum">     247</span>              :         escrow2.fund();</span>
+<span id="L248"><span class="lineNum">     248</span>              :         vm.stopPrank();</span>
+<span id="L249"><span class="lineNum">     249</span>              : </span>
+<span id="L250"><span class="lineNum">     250</span>              :         // Verify independent vault balances</span>
+<span id="L251"><span class="lineNum">     251</span>              :         assertEq(address(escrow1).balance, 1 ether + pool1);</span>
+<span id="L252"><span class="lineNum">     252</span>              :         assertEq(token.balanceOf(escrow2Addr), 100 ether + pool2);</span>
+<span id="L253"><span class="lineNum">     253</span>              : </span>
+<span id="L254"><span class="lineNum">     254</span>              :         // Escrow 1 goes through standard completion</span>
+<span id="L255"><span class="lineNum">     255</span>              :         vm.prank(freelancerA);</span>
+<span id="L256"><span class="lineNum">     256</span>              :         escrow1.submitDeliverable(&quot;https://work.com/a&quot;, IPFS_CID, NOTES, 0);</span>
+<span id="L257"><span class="lineNum">     257</span>              :         vm.prank(clientA);</span>
+<span id="L258"><span class="lineNum">     258</span>              :         escrow1.releaseFunds();</span>
+<span id="L259"><span class="lineNum">     259</span>              : </span>
+<span id="L260"><span class="lineNum">     260</span>              :         // Escrow 2 goes through dispute and full refund to Client B</span>
+<span id="L261"><span class="lineNum">     261</span>              :         vm.prank(clientB);</span>
+<span id="L262"><span class="lineNum">     262</span>              :         escrow2.raiseDispute();</span>
+<span id="L263"><span class="lineNum">     263</span>              :         vm.prank(arbiter);</span>
+<span id="L264"><span class="lineNum">     264</span>              :         escrow2.resolveDispute(100 ether, 0);</span>
+<span id="L265"><span class="lineNum">     265</span>              : </span>
+<span id="L266"><span class="lineNum">     266</span>              :         // Final independent state assertions</span>
+<span id="L267"><span class="lineNum">     267</span>              :         assertEq(uint256(escrow1.currentState()), uint256(Escrow.State.Completed));</span>
+<span id="L268"><span class="lineNum">     268</span>              :         assertEq(uint256(escrow2.currentState()), uint256(Escrow.State.Completed));</span>
+<span id="L269"><span class="lineNum">     269</span>              :         assertEq(address(escrow1).balance, 0);</span>
+<span id="L270"><span class="lineNum">     270</span>              :         assertEq(token.balanceOf(escrow2Addr), 0);</span>
+<span id="L271"><span class="lineNum">     271</span>              :     }</span>
+<span id="L272"><span class="lineNum">     272</span>              : </span>
+<span id="L273"><span class="lineNum">     273</span>              :     function test_Integration_FactoryDeployed_RevertIf_PrematureRelease() public {</span>
+<span id="L274"><span class="lineNum">     274</span>              :         uint256[] memory amounts = new uint256[](1);</span>
+<span id="L275"><span class="lineNum">     275</span>              :         amounts[0] = 1 ether;</span>
+<span id="L276"><span class="lineNum">     276</span>              :         string[] memory desc = new string[](1);</span>
+<span id="L277"><span class="lineNum">     277</span>              :         desc[0] = &quot;Scope&quot;;</span>
+<span id="L278"><span class="lineNum">     278</span>              : </span>
+<span id="L279"><span class="lineNum">     279</span>              :         // Factory deployed escrow in Pending state (before funding)</span>
+<span id="L280"><span class="lineNum">     280</span>              :         vm.prank(clientA);</span>
+<span id="L281"><span class="lineNum">     281</span>              :         address escrowAddr = factory.createEscrow(freelancerA, arbiter, address(0), amounts, desc);</span>
+<span id="L282"><span class="lineNum">     282</span>              :         Escrow escrow = Escrow(escrowAddr);</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span>              :         // Attempting to release funds when contract is still in Pending state must revert</span>
+<span id="L285"><span class="lineNum">     285</span>              :         vm.expectRevert(</span>
+<span id="L286"><span class="lineNum">     286</span>              :             abi.encodeWithSelector(</span>
+<span id="L287"><span class="lineNum">     287</span>              :                 Escrow.InvalidState.selector,</span>
+<span id="L288"><span class="lineNum">     288</span>              :                 Escrow.State.Delivered,</span>
+<span id="L289"><span class="lineNum">     289</span>              :                 Escrow.State.Pending</span>
+<span id="L290"><span class="lineNum">     290</span>              :             )</span>
+<span id="L291"><span class="lineNum">     291</span>              :         );</span>
+<span id="L292"><span class="lineNum">     292</span>              :         vm.prank(clientA);</span>
+<span id="L293"><span class="lineNum">     293</span>              :         escrow.releaseFunds();</span>
+<span id="L294"><span class="lineNum">     294</span>              :     }</span>
+<span id="L295"><span class="lineNum">     295</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5.0-full</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

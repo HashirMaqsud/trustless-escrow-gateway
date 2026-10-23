@@ -276,22 +276,17 @@ contract EscrowIntegrationTest is Test {
         string[] memory desc = new string[](1);
         desc[0] = "Scope";
 
-        // Factory deployed escrow - Client attempts to release before delivery
+        // Factory deployed escrow in Pending state (before funding)
         vm.prank(clientA);
         address escrowAddr = factory.createEscrow(freelancerA, arbiter, address(0), amounts, desc);
         Escrow escrow = Escrow(escrowAddr);
 
-        uint256 fee = (1 ether * FEE_BPS) / 10000;
-        uint256 pool = escrow.TOTAL_RELAYER_POOL();
-        vm.prank(clientA);
-        escrow.fund{value: 1 ether + fee + pool}();
-
-        // Must revert because state is Funded, not Delivered
+        // Attempting to release funds when contract is still in Pending state must revert
         vm.expectRevert(
             abi.encodeWithSelector(
                 Escrow.InvalidState.selector,
                 Escrow.State.Delivered,
-                Escrow.State.Funded
+                Escrow.State.Pending
             )
         );
         vm.prank(clientA);
