@@ -21,7 +21,7 @@ export function useEscrowState(escrowAddress: `0x${string}` | undefined) {
     ],
     query: {
       enabled: !!escrowAddress && escrowAddress.startsWith('0x'),
-      refetchInterval: 4000, // Poll state every 4s for real-time transitions
+      refetchInterval: 4000,
     },
   });
 
@@ -32,6 +32,14 @@ export function useEscrowState(escrowAddress: `0x${string}` | undefined) {
   const amount = data?.[4]?.result as bigint | undefined;
   const currentState = data?.[5]?.result as EscrowState | undefined;
   const deliverableUrl = data?.[6]?.result as string | undefined;
+
+  console.log("DEBUG_ESCROW_STATE:", {
+    escrowAddress,
+    data,
+    error,
+    isLoading,
+    parsed: { client, freelancer, arbiter, amount, currentState }
+  });
 
   return {
     client,

@@ -5,12 +5,20 @@ import {Script, console} from "forge-std/Script.sol";
 
 interface IEscrow {
     function nonces(address) external view returns (uint256);
-    function submitDeliverableWithSig(string calldata, uint256, bytes calldata) external;
+    function submitDeliverableWithSig(
+        string calldata deliverableUrl,
+        string calldata ipfsHash,
+        string calldata notes,
+        uint256 milestoneIndex,
+        uint256 deadline,
+        bytes calldata signature
+    ) external;
 }
 
 contract SignDeliverableScript is Script {
+    // EIP-712 TypeHash matching updated Escrow.sol exactly
     bytes32 private constant SUBMIT_DELIVERABLE_TYPEHASH =
-        keccak256("SubmitDeliverable(address freelancer,string deliverableUrl,uint256 nonce,uint256 deadline)");
+        keccak256("SubmitDeliverable(address freelancer,string deliverableUrl,string ipfsHash,string submissionNotes,uint256 milestoneIndex,uint256 nonce,uint256 deadline)");
 
     function run() external {
         address escrow = 0xaC4c5f10903BF8d729aFA82D9459b212176BDeF6;
@@ -18,8 +26,12 @@ contract SignDeliverableScript is Script {
         address freelancer = vm.addr(freelancerPk);
         uint256 relayerPk = 0x27f9f0b0fd193953e58df20cd0c690dd12beb3595fbd503e08a286ecb9c5b80c;
 
+        // Deliverable Payload
         string memory url = "https://github.com/HashirMaqsud/trustless-escrow-gateway/pull/1";
-        uint256 deadline = block.timestamp + 86400; // 24 hours
+        string memory ipfsHash = "ipfs://bafybeicg2oxqozr75w3xjoxj4zsvygl4q752k4z626j5z4y25n7e4q4n4y";
+        string memory notes = "Initial milestone deliverable with codebase review and automated tests.";
+        uint256 milestoneIndex = 0; // First milestone
+        uint256 deadline = block.timestamp + 86400; // 24 hours validity
         uint256 nonce = IEscrow(escrow).nonces(freelancer);
 
         // OpenZeppelin v5 exact domain separator calculation
@@ -28,16 +40,20 @@ contract SignDeliverableScript is Script {
                 keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
                 keccak256(bytes("TrustlessEscrow")),
                 keccak256(bytes("1")),
-                11155111,
+                block.chainid,
                 escrow
             )
         );
 
+        // StructHash with IPFS, notes, and milestoneIndex
         bytes32 structHash = keccak256(
             abi.encode(
                 SUBMIT_DELIVERABLE_TYPEHASH,
                 freelancer,
                 keccak256(bytes(url)),
+                keccak256(bytes(ipfsHash)),
+                keccak256(bytes(notes)),
+                milestoneIndex,
                 nonce,
                 deadline
             )
@@ -50,11 +66,19 @@ contract SignDeliverableScript is Script {
 
         console.log("Freelancer:", freelancer);
         console.log("Current Nonce:", nonce);
+        console.log("Milestone Index:", milestoneIndex);
         console.log("Deadline:", deadline);
 
-        // Broadcast with 1,000,000 gas limit so OOG never triggers
+        // Broadcast by relayer with safe gas limit
         vm.startBroadcast(relayerPk);
-        IEscrow(escrow).submitDeliverableWithSig{gas: 1000000}(url, deadline, signature);
+        IEscrow(escrow).submitDeliverableWithSig{gas: 1000000}(
+            url,
+            ipfsHash,
+            notes,
+            milestoneIndex,
+            deadline,
+            signature
+        );
         vm.stopBroadcast();
     }
 }
